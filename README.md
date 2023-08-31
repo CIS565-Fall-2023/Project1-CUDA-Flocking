@@ -48,8 +48,8 @@ We now compare the performance of the naive GPU method, uniform grid method, and
 |:--:|:--:|
 |*scene scale = 100, block size = 128, single-width cells*|
 
-|![](images/performance/num_boids_with_viz.png)|
-|:--:|
+| ![](images/performance/num_boids_with_viz_linear.png) | ![](images/performance/num_boids_with_viz_log.png) |
+|:--:|:--:|
 |*scene scale = 100, block size = 128, single-width cells*|
 
 In both cases, the naive method is faster for very small numbers of boids since it does not need to construct the grid data structure. However, its runtime quickly declines, and the coherent grid method is the clear winner overall.
