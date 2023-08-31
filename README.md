@@ -44,8 +44,8 @@ We now compare the performance of the naive GPU method, uniform grid method, and
 
 ### # Boids vs. FPS
 
-|![](images/performance/num_boids_no_viz.png)|
-|:--:|
+| ![](images/performance/num_boids_no_viz_linear.png) | ![](images/performance/num_boids_no_viz_log.png) |
+|:--:|:--:|
 |*scene scale = 100, block size = 128, single-width cells*|
 
 |![](images/performance/num_boids_with_viz.png)|
