@@ -1,0 +1,141 @@
+====================================
+# of boids (no visualization, scene scale = 100, single-width cells)
+====================================
+
+naive
+--------------------
+300: 2346 fps
+1000: 2236 fps
+3000: 1252 fps
+10000: 460 fps
+30000: 98 fps
+100000: 11 fps
+300000: 1 fps
+1000000: 0 fps
+
+uniform grid
+--------------------
+300: 1595 fps
+1000: 1635 fps
+3000: 1605 fps
+10000: 1495 fps
+30000: 1145 fps
+100000: 460 fps
+300000: 64 fps
+1000000: 15 fps
+
+coherent grid
+--------------------
+300: 1736 fps
+1000: 1706 fps
+3000: 1680 fps
+10000: 1588 fps
+30000: 1519 fps
+100000: 1285 fps
+300000: 593 fps
+1000000: 233 fps
+
+====================================
+# of boids (with visualization, scene scale = 100, single-width cells)
+====================================
+
+naive
+--------------------
+300: 628 fps
+1000: 602 fps
+3000: 518 fps
+10000: 318 fps
+30000: 84 fps
+100000: 10 fps
+300000: 1 fps
+1000000: 0 fps
+
+uniform grid
+--------------------
+300: 600 fps
+1000: 594 fps
+3000: 562 fps
+10000: 544 fps
+30000: 403 fps
+100000: 198 fps
+300000: 55 fps
+1000000: 15 fps
+
+coherent grid
+--------------------
+300: 625 fps
+1000: 568 fps
+3000: 568 fps
+10000: 545 fps
+30000: 492 fps
+100000: 460 fps
+300000: 332 fps
+1000000: 163 fps
+
+====================================
+block size (30000 boids, scene scale = 100, single-width cells, no visualization)
+====================================
+
+naive
+--------------------
+1: 4 fps
+2: 8 fps
+4: 15 fps
+8: 30 fps
+16: 51 fps
+32: 96 fps
+64: 111 fps
+128: 111 fps
+256: 105 fps
+512: 111 fps
+1024: 117 fps
+
+uniform grid
+--------------------
+1: 535 fps
+2: 672 fps
+4: 852 fps
+8: 1061 fps
+16: 1205 fps
+32: 1243 fps
+64: 1187 fps
+128: 1220 fps
+256: 1187 fps
+512: 1183 fps
+1024: 1166 fps
+
+coherent grid
+--------------------
+1: 638 fps
+2: 920 fps
+4: 1193 fps
+8: 1344 fps
+16: 1410 fps
+32: 1444 fps
+64: 1424 fps
+128: 1440 fps 
+256: 1408 fps
+512: 1418 fps
+1024: 1416 fps
+
+====================================
+ratio of cell width to neighborhood distance (50000 boids, scene scale = 100, coherent grid, no visualization)
+====================================
+
+uniform grid
+--------------------
+0.25: 27 fps
+0.5: 462 fps
+1: 878 fps
+2: 727 fps
+4: 317 fps
+8: 137 fps
+
+coherent grid
+--------------------
+0.25: 120 fps
+0.5: 1047 fps
+1: 1292 fps
+2: 1221 fps
+4: 748 fps
+8: 322 fps
