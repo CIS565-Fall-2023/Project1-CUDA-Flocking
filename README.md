@@ -40,7 +40,7 @@ A naive implementation could have each boid check every other boid to determine 
 - Constructing a uniform grid data structure reduces each boid's neighbor checks from O(n) to O(1).
 - Rearranging buffer layouts for more contiguous memory access further increases performance.
 
-We now compare the performance of the naive GPU method, uniform grid method, and coherent grid method, as well as of various other parameters. Unless otherwise specified, lower numbers are better.
+We now compare the performance of the naive GPU method, uniform grid method, and coherent grid method, as well as of various other parameters.
 
 ### # Boids vs. FPS
 
@@ -80,7 +80,7 @@ Similar to the previous comparison, the coherent grid method is the best overall
 |:--:|
 |*50,000 boids, scene scale = 100, block size = 128, no visualization*|
 
-The size of grid cells relative to the neighborhood distance also has an impact on performance. A ratio of 1 turned out to be best. This makes sense as having more cells would mean additional overhead for sorting and searching those cells, while having less cells would require searching through significantly more boids per boid.
+The size of grid cells relative to the neighborhood distance also has an impact on performance. A ratio of 1 turned out to be best. This makes sense as having more cells would mean additional overhead for sorting and searching those cells, while having less cells would require searching through significantly more boids per cell.
 
 ### Performance Questions
 
@@ -94,7 +94,7 @@ As stated above, increasing the block size past 32 had little effect on performa
 
 **For the coherent uniform grid: did you experience any performance improvements with the more coherent uniform grid? Was this the outcome you expected? Why or why not?**
 
-The coherent grid resulted in significant performance improvements over the regular uniform grid. I expected this outcome since memory access becomes more contiguous and there is one less array indirection per thread, but I did not expect how drastic the performance improvement would be. Especially for 1,000,000 boids, the difference of 2 FPS and 124 FPS is enormous. I think I underestimated how important proper memory access can be for this kind of project.
+The coherent grid resulted in significant performance improvements over the regular uniform grid. I expected this outcome since memory access becomes more contiguous and the code performs fewer array indirections, but I did not expect how drastic the performance improvement would be. Especially for 1,000,000 boids, the difference of 2 FPS and 124 FPS is enormous. I think I underestimated how important proper memory access can be for this kind of project.
 
 **Did changing cell width and checking 27 vs 8 neighboring cells affect performance? Why or why not? Be careful: it is insufficient (and possibly incorrect) to say that 27-cell is slower simply because there are more cells to check!**
 
