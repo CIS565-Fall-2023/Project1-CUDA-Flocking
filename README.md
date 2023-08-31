@@ -8,7 +8,7 @@ Project 1 - Flocking**
 
 ## Introduction
 
-*Boids* is a simulation in which particles representing birds or fish (boids) move around the simulation space according to three rules:
+*Boids* is a simulation in which particles representing agents like birds or fish (boids) move around the simulation space according to three rules:
 
 1. *cohesion* - Boids move towards the perceived center of mass of their neighbors.
 2. *separation* - Boids avoid getting to close to their neighbors.
@@ -44,13 +44,25 @@ We now compare the performance of the naive GPU method, uniform grid method, and
 
 ### # Boids vs. FPS
 
-| ![](images/performance/num_boids_no_viz_linear.png) | ![](images/performance/num_boids_no_viz_log.png) |
-|:--:|:--:|
-|*scene scale = 100, block size = 128, single-width cells*|
+<table>
+  <tr>
+    <td><img src="images/performance/num_boids_no_viz_linear.png" /></td>
+    <td><img src="images/performance/num_boids_no_viz_log.png" /></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><i>scene scale = 100, block size = 128, single-width cells</i></td>
+  </tr>
+</table>
 
-| ![](images/performance/num_boids_with_viz_linear.png) | ![](images/performance/num_boids_with_viz_log.png) |
-|:--:|:--:|
-|*scene scale = 100, block size = 128, single-width cells*|
+<table>
+  <tr>
+    <td><img src="images/performance/num_boids_with_viz_linear.png" /></td>
+    <td><img src="images/performance/num_boids_with_viz_log.png" /></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><i>scene scale = 100, block size = 128, single-width cells</i></td>
+  </tr>
+</table>
 
 In both cases, the naive method is faster for very small numbers of boids since it does not need to construct the grid data structure. However, its runtime quickly declines, and the coherent grid method is the clear winner overall.
 
