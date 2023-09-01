@@ -235,30 +235,33 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
     glm::vec3 c(0.0, 0.0, 0.0);
     glm::vec3 perceived_velocity;
     int rule1_neighbor_cnt = 0;
+    int rule3_neighbor_cnt = 0;
+    glm::vec3 other_pos;
     for (int index = 0; index < N; ++index) {
-        glm::vec3 bold_pos = pos[index];
+        other_pos = pos[index];
         if (index != iSelf) {
             // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
-            if (glm::distance(bold_pos, self_pos) < rule1Distance) {
-                perceived_center += bold_pos;
+            if (glm::distance(other_pos, self_pos) < rule1Distance) {
+                perceived_center += other_pos;
                 rule1_neighbor_cnt++;
             }
 
             // Rule 2: boids try to stay a distance d away from each other
-            if (glm::distance(bold_pos, self_pos) < rule2Distance) {
-                c -= (self_pos - bold_pos);
+            if (glm::distance(other_pos, self_pos) < rule2Distance) {
+                c -= (other_pos - self_pos);
             }
 
             // Rule 3: boids try to match the speed of surrounding boids
-            if (glm::distance(bold_pos, self_pos) < rule3Distance) {
+            if (glm::distance(other_pos, self_pos) < rule3Distance) {
                 perceived_velocity += vel[index];
+                rule3_neighbor_cnt++;
             }
 
         }
     }
 
     perceived_center /= rule1_neighbor_cnt;
-    perceived_velocity /= rule1_neighbor_cnt;
+    perceived_velocity /= rule3_neighbor_cnt;
     
     glm::vec3 changedVel = vel[iSelf]
         // Rule 1
@@ -270,20 +273,27 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
     return changedVel;
 }
 
+__device__ float deviceClampFloat(float value, float min, float max) {
+    return value < min ? min : ((value > max ? max : value));
+}
+
 /**
 * TODO-1.2 implement basic flocking
 * For each of the `N` bodies, update its position based on its current velocity.
 */
 __global__ void kernUpdateVelocityBruteForce(int N, glm::vec3 *pos,
   glm::vec3 *vel1, glm::vec3 *vel2) {
-  // Compute a new velocity based on pos and vel1
-  // Clamp the speed
-  // Record the new velocity into vel2. Question: why NOT vel1?
-
-  // Because vel1 is the old vels needed to calculate the new vels
     int index = threadIdx.x + (blockIdx.x * blockDim.x);
     if (index >= N) return;
+
+  // Compute a new velocity based on pos and vel1
+  // Record the new velocity into vel2. Question: why NOT vel1?
+  // Because vel1 is the old vels needed to calculate the new vels
+  // Clamp the speed
     vel2[index] = computeVelocityChange(N, index, pos, vel1);
+    vel2[index][0] = deviceClampFloat(vel2[index][0], -maxSpeed, maxSpeed);
+    vel2[index][1] = deviceClampFloat(vel2[index][1], -maxSpeed, maxSpeed);
+    vel2[index][2] = deviceClampFloat(vel2[index][2], -maxSpeed, maxSpeed);
 }
 
 /**
