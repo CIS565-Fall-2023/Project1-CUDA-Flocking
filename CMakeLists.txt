@@ -61,6 +61,10 @@ set(GLM_ROOT_DIR "external")
 find_package(GLM REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
+#set project dir
+file(TO_CMAKE_PATH ${CMAKE_SOURCE_DIR} PROJ_BASE_PATH_NORMALIZED)
+add_definitions(-DPROJ_BASE_PATH=${PROJ_BASE_PATH_NORMALIZED})
+
 set(headers
     src/cudaMat4.hpp
     src/glslUtility.hpp

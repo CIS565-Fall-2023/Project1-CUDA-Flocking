@@ -17,6 +17,12 @@
 #define UNIFORM_GRID 0
 #define COHERENT_GRID 0
 
+// String help macro
+#define JOIN(a, b) a##b
+#define JOIN2(a, b) JOIN(a, b)
+#define STR(a) #a
+#define STR2(a) STR(a)
+
 // LOOK-1.2 - change this to adjust particle count in the simulation
 const int N_FOR_VIS = 5000;
 const float DT = 0.2f;
@@ -167,9 +173,9 @@ void initShaders(GLuint * program) {
   GLint location;
 
   program[PROG_BOID] = glslUtility::createProgram(
-    "shaders/boid.vert.glsl",
-    "shaders/boid.geom.glsl",
-    "shaders/boid.frag.glsl", attributeLocations, 2);
+      STR2(JOIN2(PROJ_BASE_PATH, /shaders/boid.vert.glsl)),
+      STR2(JOIN2(PROJ_BASE_PATH, /shaders/boid.geom.glsl)),
+      STR2(JOIN2(PROJ_BASE_PATH, /shaders/boid.frag.glsl)), attributeLocations, 2);
     glUseProgram(program[PROG_BOID]);
 
     if ((location = glGetUniformLocation(program[PROG_BOID], "u_projMatrix")) != -1) {
