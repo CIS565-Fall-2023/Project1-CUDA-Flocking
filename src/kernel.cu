@@ -233,8 +233,8 @@ __global__ void kernCopyVelocitiesToVBO(int N, glm::vec3 *vel, float *vbo, float
 void Boids::copyBoidsToVBO(float *vbodptr_positions, float *vbodptr_velocities) {
   dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
 
-  kernCopyPositionsToVBO << <fullBlocksPerGrid, blockSize >> >(numObjects, dev_pos, vbodptr_positions, scene_scale);
-  kernCopyVelocitiesToVBO << <fullBlocksPerGrid, blockSize >> >(numObjects, dev_vel1, vbodptr_velocities, scene_scale);
+  kernCopyPositionsToVBO<<<fullBlocksPerGrid, blockSize>>>(numObjects, dev_pos, vbodptr_positions, scene_scale);
+  kernCopyVelocitiesToVBO<<<fullBlocksPerGrid, blockSize>>>(numObjects, dev_vel1, vbodptr_velocities, scene_scale);
 
   checkCUDAErrorWithLine("copyBoidsToVBO failed!");
 
@@ -387,7 +387,7 @@ __global__ void kernIdentifyCellStartEnd(int N, int *particleGridIndices,
   if (index == N - 1) gridCellEndIndices[particleGridIndices[index]] = index;
 
   int prev = index - 1;
-  if (particleGridIndices[prev] = particleGridIndices[index]) {
+  if (particleGridIndices[prev] != particleGridIndices[index]) {
       gridCellStartIndices[particleGridIndices[index]] = index;
       gridCellEndIndices[particleGridIndices[prev]] = prev;
   }
@@ -406,8 +406,6 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 
   glm::vec3 thisPos = pos[index];
   glm::vec3 thisVel1 = vel1[index];
-
-  int cellCount = gridResolution * gridResolution * gridResolution;
 
   glm::vec3 perceived_center = glm::vec3(0.0f, 0.0f, 0.0f);
   glm::vec3 c = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -433,40 +431,41 @@ __global__ void kernUpdateVelNeighborSearchScattered(
   // - For each cell, read the start/end indices in the boid pointer array.
   for (int z = start.z; z <= end.z; z++) 
   {
+    if (z < 0 || z > gridResolution) continue;
     for (int y = start.y; y <= end.y; y++)
     {
+      if (y < 0 || y > gridResolution) continue;
       for (int x = start.x; x <= end.x; x++)
       {
+        if (x < 0 || x > gridResolution) continue;
+
         int gridIndex = gridIndex3Dto1D(x, y, z, gridResolution);
-        if (gridIndex >= 0 && gridIndex < cellCount) 
+        int sIndex = gridCellStartIndices[gridIndex];
+        int eIndex = gridCellEndIndices[gridIndex];
+        if (sIndex < 0 || eIndex < 0) continue;
+
+        for (int i = sIndex; i <= eIndex; i++)
         {
-          int sIndex = gridCellStartIndices[gridIndex];
-          int eIndex = gridCellEndIndices[gridIndex];
-          if (sIndex < 0 || eIndex < 0) continue;
+          // - Access each boid in the cell and compute velocity change from
+          //   the boids rules, if this boid is within the neighborhood distance.
+          int bIndex = particleArrayIndices[i];
+          if (bIndex == index) continue;
 
-          for (int i = sIndex; i <= eIndex; i++)
-          {
-            // - Access each boid in the cell and compute velocity change from
-            //   the boids rules, if this boid is within the neighborhood distance.
-            int bIndex = particleArrayIndices[i];
-            if (bIndex == index) continue;
+          glm::vec3 bPos = pos[bIndex];
+          glm::vec3 bVel = vel1[bIndex];
 
-            glm::vec3 bPos = pos[bIndex];
-            glm::vec3 bVel = vel1[bIndex];
-
-            float dist = glm::distance(thisPos, bPos);
-            // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
-            if (dist < rule1Distance) {
-              perceived_center += bPos;
-              neighborCount1++;
-            }
-            // Rule 2: boids try to stay a distance d away from each other
-            if (dist < rule2Distance) c -= (bPos - thisPos);
-            // Rule 3: boids try to match the speed of surrounding boids
-            if (dist < rule3Distance) {
-              perceived_velocity += bVel;
-              neighborCount3++;
-            }
+          float dist = glm::distance(thisPos, bPos);
+          // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
+          if (dist < rule1Distance) {
+            perceived_center += bPos;
+            neighborCount1++;
+          }
+          // Rule 2: boids try to stay a distance d away from each other
+          if (dist < rule2Distance) c -= (bPos - thisPos);
+          // Rule 3: boids try to match the speed of surrounding boids
+          if (dist < rule3Distance) {
+            perceived_velocity += bVel;
+            neighborCount3++;
           }
         }
       }
@@ -505,8 +504,6 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
   glm::vec3 thisPos = pos[index];
   glm::vec3 thisVel1 = vel1[index];
 
-  int cellCount = gridResolution * gridResolution * gridResolution;
-
   glm::vec3 perceived_center = glm::vec3(0.0f, 0.0f, 0.0f);
   glm::vec3 c = glm::vec3(0.0f, 0.0f, 0.0f);
   glm::vec3 perceived_velocity = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -532,43 +529,44 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
   //   checked in to maximize the memory benefits of reordering the boids data.
   for (int z = start.z; z <= end.z; z++)
   {
-      for (int y = start.y; y <= end.y; y++)
+    if (z < 0 || z > gridResolution) continue;
+    for (int y = start.y; y <= end.y; y++)
+    {
+      if (y < 0 || y > gridResolution) continue;
+      for (int x = start.x; x <= end.x; x++)
       {
-          for (int x = start.x; x <= end.x; x++)
-          {
-              int gridIndex = gridIndex3Dto1D(x, y, z, gridResolution);
-              if (gridIndex >= 0 && gridIndex < cellCount)
-              {
-                  int sIndex = gridCellStartIndices[gridIndex];
-                  int eIndex = gridCellEndIndices[gridIndex];
-                  if (sIndex < 0 || eIndex < 0) continue;
+        if (x < 0 || x > gridResolution) continue;
 
-                  for (int i = sIndex; i <= eIndex; i++)
-                  {
-                      // - Access each boid in the cell and compute velocity change from
-                      //   the boids rules, if this boid is within the neighborhood distance.
-                      if (i == index) continue;
+        int gridIndex = gridIndex3Dto1D(x, y, z, gridResolution);
+        int sIndex = gridCellStartIndices[gridIndex];
+        int eIndex = gridCellEndIndices[gridIndex];
+        if (sIndex < 0 || eIndex < 0) continue;
 
-                      glm::vec3 bPos = pos[i];
-                      glm::vec3 bVel = vel1[i];
+        for (int i = sIndex; i <= eIndex; i++)
+        {
+          // - Access each boid in the cell and compute velocity change from
+          //   the boids rules, if this boid is within the neighborhood distance.
+          if (i == index) continue;
 
-                      float dist = glm::distance(thisPos, bPos);
-                      // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
-                      if (dist < rule1Distance) {
-                          perceived_center += bPos;
-                          neighborCount1++;
-                      }
-                      // Rule 2: boids try to stay a distance d away from each other
-                      if (dist < rule2Distance) c -= (bPos - thisPos);
-                      // Rule 3: boids try to match the speed of surrounding boids
-                      if (dist < rule3Distance) {
-                          perceived_velocity += bVel;
-                          neighborCount3++;
-                      }
-                  }
-              }
+          glm::vec3 bPos = pos[i];
+          glm::vec3 bVel = vel1[i];
+
+          float dist = glm::distance(thisPos, bPos);
+          // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
+          if (dist < rule1Distance) {
+            perceived_center += bPos;
+            neighborCount1++;
           }
+          // Rule 2: boids try to stay a distance d away from each other
+          if (dist < rule2Distance) c -= (bPos - thisPos);
+          // Rule 3: boids try to match the speed of surrounding boids
+          if (dist < rule3Distance) {
+            perceived_velocity += bVel;
+            neighborCount3++;
+          }
+        }
       }
+    }
   }
   if (neighborCount1 != 0) perceived_center /= neighborCount1;
   if (neighborCount3 != 0) perceived_velocity /= neighborCount3;
