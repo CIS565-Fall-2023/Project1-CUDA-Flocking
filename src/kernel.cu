@@ -284,7 +284,6 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
 
   if (num_neighbors_1 > 0) {
     perceived_center /= (float)num_neighbors_1;
-    
     res_vel += (perceived_center - pos_self) * rule1Scale;
   }
   
@@ -483,15 +482,15 @@ __global__ void kernUpdateVelNeighborSearchScattered(
   glm::vec3 res_vel(0.0f);
 
   if (num_neighbors_1 > 0) {
-      perceived_center /= (float)num_neighbors_1;
-      res_vel += (perceived_center - pos_self) * rule1Scale;
+    perceived_center /= (float)num_neighbors_1;
+    res_vel += (perceived_center - pos_self) * rule1Scale;
   }
 
   res_vel += seperate_center * rule2Scale;
 
   if (num_neighbors_3 > 0) {
-      perceived_velocity /= (float)num_neighbors_3;
-      res_vel += perceived_velocity * rule3Scale;
+    perceived_velocity /= (float)num_neighbors_3;
+    res_vel += perceived_velocity * rule3Scale;
   }
   
   // - Clamp the speed change before putting the new speed in vel2
@@ -572,15 +571,15 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
   glm::vec3 res_vel(0.0f);
 
   if (num_neighbors_1 > 0) {
-      perceived_center /= (float)num_neighbors_1;
-      res_vel += (perceived_center - pos_self) * rule1Scale;
+    perceived_center /= (float)num_neighbors_1;
+    res_vel += (perceived_center - pos_self) * rule1Scale;
   }
 
   res_vel += seperate_center * rule2Scale;
 
   if (num_neighbors_3 > 0) {
-      perceived_velocity /= (float)num_neighbors_3;
-      res_vel += perceived_velocity * rule3Scale;
+    perceived_velocity /= (float)num_neighbors_3;
+    res_vel += perceived_velocity * rule3Scale;
   }
 
   // - Clamp the speed change before putting the new speed in vel2

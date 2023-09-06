@@ -14,11 +14,13 @@
 
 // LOOK-2.1 LOOK-2.3 - toggles for UNIFORM_GRID and COHERENT_GRID
 #define VISUALIZE 1
-#define UNIFORM_GRID 1
-#define COHERENT_GRID 1
+#define UNIFORM_GRID 0
+#define COHERENT_GRID 0
+
+#define ANALYSIS 0
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
-const int N_FOR_VIS = 50000;
+const int N_FOR_VIS = 100000;
 const float DT = 0.2f;
 
 /**
@@ -42,6 +44,12 @@ int main(int argc, char* argv[]) {
 
 std::string deviceName;
 GLFWwindow *window;
+cudaEvent_t start, stop;
+float totalTimeElapsed = 0.0f;
+int run = 0;
+
+const float startProfileTime = 10.0f;
+const float endProfileTime = 70.0f;
 
 /**
 * Initialization of CUDA and GLFW.
@@ -107,6 +115,12 @@ bool init(int argc, char **argv) {
 
   cudaGLRegisterBufferObject(boidVBO_positions);
   cudaGLRegisterBufferObject(boidVBO_velocities);
+
+  #if ANALYSIS
+  // Initialize Cuda Timer
+  cudaEventCreate(&start);
+  cudaEventCreate(&stop);
+  #endif // ANALYSIS
 
   // Initialize N-body simulation
   Boids::initSimulation(N_FOR_VIS);
@@ -195,6 +209,10 @@ void initShaders(GLuint * program) {
     cudaGLMapBufferObject((void**)&dptrVertPositions, boidVBO_positions);
     cudaGLMapBufferObject((void**)&dptrVertVelocities, boidVBO_velocities);
 
+    #if ANALYSIS
+    cudaEventRecord(start);
+    #endif // ANALYSIS
+    
     // execute the kernel
     #if UNIFORM_GRID && COHERENT_GRID
     Boids::stepSimulationCoherentGrid(DT);
@@ -202,6 +220,18 @@ void initShaders(GLuint * program) {
     Boids::stepSimulationScatteredGrid(DT);
     #else
     Boids::stepSimulationNaive(DT);
+    #endif
+
+    #if ANALYSIS
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+
+    if (glfwGetTime() >= startProfileTime && glfwGetTime() <= endProfileTime) {
+      totalTimeElapsed += milliseconds;
+      ++run;
+    }
     #endif
 
     #if VISUALIZE
@@ -217,15 +247,25 @@ void initShaders(GLuint * program) {
     double timebase = 0;
     int frame = 0;
 
+    int totalFrame = 0; // To test overall fps
+
     Boids::unitTest(); // LOOK-1.2 We run some basic example code to make sure
                        // your CUDA development setup is ready to go.
 
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(window)) { 
       glfwPollEvents();
 
-      frame++;
       double time = glfwGetTime();
+      #if ANALYSIS
+      if (time > endProfileTime) {
+        break;
+      }
+      if (time >= startProfileTime) {
+        totalFrame++;
+      }
+      #endif
 
+      frame++;
       if (time - timebase > 1.0) {
         fps = frame / (time - timebase);
         timebase = time;
@@ -256,6 +296,13 @@ void initShaders(GLuint * program) {
       glfwSwapBuffers(window);
       #endif
     }
+
+    #if ANALYSIS
+    std::cout << "Average FPS: " << (double)totalFrame / (glfwGetTime() - startProfileTime) << std::endl;
+    std::cout << "Simulation Count: " << run << std::endl;
+    std::cout << "Average time(ms) to run step simulation: " << totalTimeElapsed / (float)run << std::endl;
+    # endif
+
     glfwDestroyWindow(window);
     glfwTerminate();
   }
