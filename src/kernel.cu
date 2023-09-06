@@ -352,9 +352,10 @@ __device__ int gridIndex3Dto1D(int x, int y, int z, int gridResolution) {
 
 __device__ glm::vec3 gridIndex1Dto3D(int id, int gridResolution) {
     int x = id % gridResolution;
-    int y = (id - x) % gridResolution;
-
-    return { x, y, (id - x - y * gridResolution) / (gridResolution * gridResolution) };
+    id = (id - x) / gridResolution;
+    int y = id % gridResolution;
+    id = (id - y) / gridResolution;;
+    return { x, y, id };
 }
 
 __global__ void kernComputeIndices(int N, int gridResolution,
@@ -444,7 +445,7 @@ __device__ void UpdateVelNeighborSearchScatteredHelp(int grid, int iSelf,
     //printf("[%d, %d]\n", neighbor_count_1, neighbor_count_3);
 }
 
-__global__ void kernUpdateVelNeighborSearchScattered(int N, int gridResolution, glm::vec3 gridMin,
+__global__ void kernUpdateVelNeighborSearchScattered(int N, int gridCellCount, int gridResolution, glm::vec3 gridMin,
                                                      float inverseCellWidth, float cellWidth,
                                                      int *gridCellStartIndices, int *gridCellEndIndices,
                                                      int* particleGridIndices, int *particleArrayIndices,
@@ -461,12 +462,20 @@ __global__ void kernUpdateVelNeighborSearchScattered(int N, int gridResolution, 
     int index = threadIdx.x + (blockDim.x * blockIdx.x);
     if (index >= N) return;
 
-    int grid_id = particleGridIndices[N];
+    int grid_id = particleGridIndices[index];
     glm::vec3 grid_id_3d = gridIndex1Dto3D(grid_id, gridResolution);
     glm::vec3 grid_center = gridMin + grid_id_3d * cellWidth + 0.5f * cellWidth;
 
-    glm::vec3 offset = pos[particleArrayIndices[index]] - grid_center;
-    glm::ivec3 ioffset = glm::sign(offset) * glm::ceil(glm::abs(offset));
+    glm::vec3 offset = (pos[particleArrayIndices[index]] - grid_center) * inverseCellWidth * 2.f;
+    offset = glm::sign(offset) * glm::ceil(glm::abs(offset));
+    glm::ivec3 ioffset = offset;
+    
+    //printf("%d: %d, [%f, %f, %f], [%f, %f, %f], [%f, %f, %f], [%f, %f, %f], [%d, %d, %d]\n", index, grid_id,
+    //    grid_id_3d.x, grid_id_3d.y, grid_id_3d.z,
+    //    pos[particleArrayIndices[index]].x, pos[particleArrayIndices[index]].y, pos[particleArrayIndices[index]].z, 
+    //    grid_center.x, grid_center.y, grid_center.z,
+    //    offset.x, offset.y, offset.z, 
+    //    ioffset.x, ioffset.y, ioffset.z);
 
     glm::vec3 v1(0.f, 0.f, 0.f), v2(0.f), v3(0.f);
     glm::vec3 perceived_center(0.f);
@@ -474,11 +483,11 @@ __global__ void kernUpdateVelNeighborSearchScattered(int N, int gridResolution, 
     
     // check self grid
     UpdateVelNeighborSearchScatteredHelp(grid_id, index,
-                                        gridCellStartIndices, gridCellEndIndices,
-                                        particleArrayIndices, pos, vel1,
-                                        perceived_center, v2, v3,
-                                        neighbor_count_1, neighbor_count_3);
-
+                                            gridCellStartIndices, gridCellEndIndices,
+                                            particleArrayIndices, pos, vel1,
+                                            perceived_center, v2, v3,
+                                            neighbor_count_1, neighbor_count_3);
+    
     int dim[3]{1, gridResolution, gridResolution * gridResolution };
     // iterate over neighbor grids
     for (int x = 0; x < 3; ++x)
@@ -526,8 +535,8 @@ __global__ void kernUpdateVelNeighborSearchScattered(int N, int gridResolution, 
     v2 *= rule2Scale;
     v3 *= rule3Scale;
 
-    glm::vec3 velocity = v1 + v2 + v3;
-
+    glm::vec3 velocity = vel1[particleArrayIndices[index]] + v1 + v2 + v3;
+    //glm::vec3 velocity = vel1[particleArrayIndices[index]] + computeVelocityChange(N, particleArrayIndices[index], pos, vel1);
     float speed = glm::length(velocity);
     if (speed > maxSpeed)
     {
@@ -606,8 +615,8 @@ void Boids::stepSimulationScatteredGrid(float dt) {
     checkCUDAErrorWithLine("Label Paritcles failed!");
     cudaDeviceSynchronize();
     
-    //std::array<int, 10> grids;
-    //std::array<int, 10> particles;
+    //std::array<int, 100> grids;
+    //std::array<int, 100> particles;
     //std::vector<int> grid_start(gridCellCount);
     //std::vector<int> grid_end(gridCellCount);
     //cudaMemcpy(grid_start.data(), dev_gridCellStartIndices, sizeof(int) * gridCellCount, cudaMemcpyDeviceToHost);
@@ -623,7 +632,7 @@ void Boids::stepSimulationScatteredGrid(float dt) {
     //cudaMemcpy(particles.data(), dev_particleArrayIndices, sizeof(int) * numObjects, cudaMemcpyDeviceToHost);
 
     // TODO: test stable sort
-    kernIdentifyCellStartEnd<<<fullBlocksPerGrid, blockSize >>>(numObjects, dev_particleArrayIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
+    kernIdentifyCellStartEnd<<<fullBlocksPerGrid, blockSize >>>(numObjects, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
     checkCUDAErrorWithLine("IdentifyCellStartEnd failed!");
     cudaDeviceSynchronize();
 
@@ -631,7 +640,7 @@ void Boids::stepSimulationScatteredGrid(float dt) {
     //cudaMemcpy(grid_start.data(), dev_gridCellStartIndices, sizeof(int) * gridCellCount, cudaMemcpyDeviceToHost);
     //cudaMemcpy(grid_end.data(), dev_gridCellEndIndices, sizeof(int) * gridCellCount, cudaMemcpyDeviceToHost);
 
-    kernUpdateVelNeighborSearchScattered <<< fullBlocksPerGrid, blockSize >>> (numObjects, gridSideCount, gridMinimum,
+    kernUpdateVelNeighborSearchScattered <<< fullBlocksPerGrid, blockSize >>> (numObjects, gridCellCount, gridSideCount, gridMinimum,
                                                                                 gridInverseCellWidth, gridCellWidth,
                                                                                 dev_gridCellStartIndices, dev_gridCellEndIndices, 
                                                                                 dev_particleGridIndices, dev_particleArrayIndices,
