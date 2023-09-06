@@ -438,7 +438,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
   int rule3Neighbors = 0;
   glm::vec3 deltaVel(0.f);
 
-  float maxCheckDist = std::max(std::max(rule1Distance, rule2Distance), rule3Distance) * inverseCellWidth;
+  float maxCheckDist = cellWidth / 2;
   // check current cell
   glm::vec3 cell3D = (pos[index] - gridMin) * inverseCellWidth;
   int curCell = gridIndex3Dto1D((int)(cell3D.x), (int)(cell3D.y), (int)(cell3D.z), gridResolution);
@@ -548,7 +548,7 @@ void Boids::stepSimulationScatteredGrid(float dt) {
     gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
   thrust::sort_by_key(dev_thrust_particleGridIndices, dev_thrust_particleGridIndices + numObjects, dev_thrust_particleArrayIndices);
   kernResetIntBuffer << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_gridCellStartIndices, -1);
-  kernResetIntBuffer << <fullBlocksPerGrid, blockSize >> > (numObjects, , dev_gridCellEndIndices, -1);
+  kernResetIntBuffer << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_gridCellEndIndices, -1);
   kernIdentifyCellStartEnd << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
   kernUpdateVelNeighborSearchScattered<<<fullBlocksPerGrid, blockSize>>>(numObjects, gridCellCount, gridMinimum, gridInverseCellWidth, 
     gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_particleArrayIndices, dev_pos, dev_vel1, dev_vel2);
