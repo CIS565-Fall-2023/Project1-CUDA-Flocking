@@ -502,19 +502,10 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
   int neighborCount1 = 0;
   int neighborCount3 = 0;
   // - Identify the grid cell that this particle is in
-  glm::ivec3 gridCell = glm::ivec3(glm::floor((pos[index] - gridMin) * inverseCellWidth));
-  glm::vec3 gridCellFract = glm::vec3(glm::fract((pos[index] - gridMin) * inverseCellWidth));
-  glm::ivec3 dir = glm::ivec3(1);
-  if (gridCellFract.x < 0.5) dir.x = -1;
-  if (gridCellFract.y < 0.5) dir.y = -1;
-  if (gridCellFract.z < 0.5) dir.z = -1;
-  // - Identify which cells may contain neighbors. This isn't always 8.
-  glm::ivec3 start = glm::ivec3(imin(gridCell.x, gridCell.x + dir.x),
-      imin(gridCell.y, gridCell.y + dir.y),
-      imin(gridCell.z, gridCell.z + dir.z));
-  glm::ivec3 end = glm::ivec3(imax(gridCell.x, gridCell.x + dir.x),
-      imax(gridCell.y, gridCell.y + dir.y),
-      imax(gridCell.z, gridCell.z + dir.z));
+  glm::vec3 neighborDist = glm::vec3(glm::max(glm::max(rule1Distance, rule2Distance), rule3Distance));
+  glm::ivec3 start = glm::ivec3(glm::floor((thisPos - neighborDist - gridMin) * inverseCellWidth));
+  glm::ivec3 end = glm::ivec3(glm::floor((thisPos + neighborDist - gridMin) * inverseCellWidth));
+
   // - For each cell, read the start/end indices in the boid pointer array.
   //   DIFFERENCE: For best results, consider what order the cells should be
   //   checked in to maximize the memory benefits of reordering the boids data.
