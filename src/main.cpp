@@ -15,7 +15,7 @@
 // LOOK-2.1 LOOK-2.3 - toggles for UNIFORM_GRID and COHERENT_GRID
 #define VISUALIZE 1
 #define UNIFORM_GRID 1
-#define COHERENT_GRID 0
+#define COHERENT_GRID 1
 
 // String help macro
 #define JOIN(a, b) a##b
@@ -48,6 +48,7 @@ int main(int argc, char* argv[]) {
 
 std::string deviceName;
 GLFWwindow *window;
+bool pause = false;
 
 /**
 * Initialization of CUDA and GLFW.
@@ -98,6 +99,7 @@ bool init(int argc, char **argv) {
   glfwSetKeyCallback(window, keyCallback);
   glfwSetCursorPosCallback(window, mousePositionCallback);
   glfwSetMouseButtonCallback(window, mouseButtonCallback);
+  glfwSetWindowSizeCallback(window, windowResizeCallback);
 
   glewExperimental = GL_TRUE;
   if (glewInit() != GLEW_OK) {
@@ -225,7 +227,7 @@ void initShaders(GLuint * program) {
 
     //Boids::unitTest(); // LOOK-1.2 We run some basic example code to make sure
     //                   // your CUDA development setup is ready to go.
-
+    
     while (!glfwWindowShouldClose(window)) {
       glfwPollEvents();
 
@@ -237,9 +239,11 @@ void initShaders(GLuint * program) {
         timebase = time;
         frame = 0;
       }
-
-      runCUDA();
-
+      if (!pause)
+      {
+          runCUDA();
+      }
+      
       std::ostringstream ss;
       ss << "[";
       ss.precision(1);
@@ -275,6 +279,10 @@ void initShaders(GLuint * program) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
       glfwSetWindowShouldClose(window, GL_TRUE);
     }
+    if (key == GLFW_KEY_P && action == GLFW_PRESS)
+    {
+        pause = !pause;
+    }
   }
 
   void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
@@ -298,6 +306,14 @@ void initShaders(GLuint * program) {
 
 	lastX = xpos;
 	lastY = ypos;
+  }
+
+  void windowResizeCallback(GLFWwindow* window, int w, int h)
+  {
+      width = w;
+      height = h;
+      updateCamera();
+      glViewport(0, 0, width, height);
   }
 
   void updateCamera() {
