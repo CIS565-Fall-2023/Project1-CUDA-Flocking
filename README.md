@@ -62,3 +62,6 @@ From my test, I found that there is no significant difference between 8 or 27 ne
 | 27:  | 0.20 | 0.20 | 0.22 | 0.29 |
 
 I think, when there are not many boids, the actual number of boids in neighbor cells doesn't differ much. However, when there are 100000 boids, boids are divided quite averagely in space. Since the cell size if 1/2 in 27 neighbor cell, the total neighbor cell space size ratio of 27 and 8 cells is 27 * (1/2) * (1/2) / 8 = 27/32. So there are less boids to travserse in 27 neighbor modes, and thus it's faster.
+
+#### - Grid-Looping Optimization
+After I implemented the grid-looping optimization and set cell width as max_Distance, the average time is about 0.27 for 100000 boids, which has some improvement from 27 neighbor mode. I think some cells among the 27 cells are further removed, and when calculating the cell boundary, there are fewer computation.

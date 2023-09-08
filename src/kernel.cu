@@ -158,7 +158,7 @@ void Boids::initSimulation(int N) {
   checkCUDAErrorWithLine("kernGenerateRandomPosArray failed!");
 
   // LOOK-2.1 computing grid params
-  gridCellWidth = 2 * std::max(std::max(rule1Distance, rule2Distance), rule3Distance);
+  gridCellWidth = std::max(std::max(rule1Distance, rule2Distance), rule3Distance);
   int halfSideCount = (int)(scene_scale / gridCellWidth) + 1;
   gridSideCount = 2 * halfSideCount;
 
@@ -510,21 +510,26 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
     glm::vec3 perceived_velocity(0);
     int perceived_velocity_count = 0;
 
-    glm::vec3 gridIndex = inverseCellWidth * (pos[index] - gridMin);
+    // Original 8-cell looping
+    //glm::vec3 gridIndex = inverseCellWidth * (pos[index] - gridMin);
+    //glm::vec3 gridBegin = gridIndex - glm::vec3(0.5, 0.5, 0.5);
+    //for (int gx = imax(gridBegin.x, 0); gx <= imin(gridBegin.x + 1, N - 1); gx++) {
+    //    for (int gy = imax(gridBegin.y, 0); gy <= imin(gridBegin.y + 1, N - 1); gy++) {
+    //        for (int gz = imax(gridBegin.z, 0); gz <= imin(gridBegin.z + 1, N - 1); gz++) {
 
-    //for (int gx = imax(gridIndex.x - 1, 0); gx <= imin(gridIndex.x + 1, N - 1); gx++) {
-    //    for (int gy = imax(gridIndex.y - 1, 0); gy <= imin(gridIndex.y + 1, N - 1); gy++) {
-    //        for (int gz = imax(gridIndex.z - 1, 0); gz <= imin(gridIndex.z + 1, N - 1); gz++) {
-    glm::vec3 gridBegin = gridIndex - glm::vec3(0.5, 0.5, 0.5);
-    for (int gx = imax(gridBegin.x, 0); gx <= imin(gridBegin.x + 1, N - 1); gx++) {
-        for (int gy = imax(gridBegin.y, 0); gy <= imin(gridBegin.y + 1, N - 1); gy++) {
-            for (int gz = imax(gridBegin.z, 0); gz <= imin(gridBegin.z + 1, N - 1); gz++) {
+    // Extra Credit: Grid-Looping Optimization
+    glm::vec3 gridBegin = inverseCellWidth * (pos[index] - glm::vec3(cellWidth) - gridMin);
+    glm::vec3 gridEnd = inverseCellWidth * (pos[index] + glm::vec3(cellWidth) - gridMin);
+    gridBegin = glm::max(gridBegin, glm::vec3(0));
+    gridEnd = glm::min(gridEnd, glm::vec3(N - 1));
+    for (int gx = gridBegin.x; gx <= gridEnd.x; gx++) {
+        for (int gy = gridBegin.y; gy <= gridEnd.y; gy++) {
+            for (int gz = gridBegin.z; gz <= gridEnd.z; gz++) {
+
                 int gi = gridIndex3Dto1D(gx, gy, gz, gridResolution);
                 if (gridCellStartIndices[gi] < 0) { continue; }
-
                 for (int i = gridCellStartIndices[gi]; i <= gridCellEndIndices[gi]; i++) {
                     float len = glm::length(pos[i] - pos[index]);
-
                     if (i != index && len < rule1Distance) {
                         perceived_center += pos[i];
                         perceived_center_count++;
@@ -592,64 +597,21 @@ void Boids::stepSimulationScatteredGrid(float dt) {
     dim3 fullBlocksPerGridForCell((gridCellCount + blockSize - 1) / blockSize);
     kernComputeIndices << <fullBlocksPerGrid, blockSize >> > (numObjects, gridSideCount, gridMinimum, gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
 
-    // Test Output
-    //std::unique_ptr<int[]>pais{ new int[numObjects] };
-    //std::unique_ptr<int[]>pgis{ new int[numObjects] };
-    //std::unique_ptr<int[]>gcsi{ new int[gridCellCount] };
-    //std::unique_ptr<int[]>gcei{ new int[gridCellCount] };
-    //cudaMemcpy(pais.get(), dev_particleArrayIndices, sizeof(int) * numObjects, cudaMemcpyDeviceToHost);
-    //cudaMemcpy(pgis.get(), dev_particleGridIndices, sizeof(int) * numObjects, cudaMemcpyDeviceToHost);
-    // std::cout << "before sort: " << std::endl;
-    //for (int i = 0; i < numObjects; i++) {
-    //    std::cout << pgis[i] << ", " << pais[i] << std::endl;
-    //}
-
     // sort
     thrust::device_ptr<int> dev_thrust_Idx(dev_particleArrayIndices);
     thrust::device_ptr<int> dev_thrust_GridIdx(dev_particleGridIndices);
     // LOOK-2.1 Example for using thrust::sort_by_key
     thrust::sort_by_key(dev_thrust_GridIdx, dev_thrust_GridIdx + numObjects, dev_thrust_Idx);
-    
-    // Test Output
-    //std::cout << "after sort: " << std::endl;
-    //cudaMemcpy(pais.get(), dev_particleArrayIndices, sizeof(int) * numObjects, cudaMemcpyDeviceToHost);
-    //cudaMemcpy(pgis.get(), dev_particleGridIndices, sizeof(int) * numObjects, cudaMemcpyDeviceToHost);
-    //for (int i = 0; i < numObjects; i++) {
-    //    std::cout << i << ", " << pgis[i] << ", " << pais[i] << std::endl;
-    //}
 
     kernResetIntBuffer << <fullBlocksPerGridForCell, blockSize >> > (gridCellCount, dev_gridCellStartIndices, -1);
     kernResetIntBuffer << <fullBlocksPerGridForCell, blockSize >> > (gridCellCount, dev_gridCellEndIndices, -1);
     kernIdentifyCellStartEnd << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
-
-    // Test Output
-    //std::cout << "after find begin & end: " << std::endl;
-    //cudaMemcpy(gcsi.get(), dev_gridCellStartIndices, sizeof(int) * gridCellCount, cudaMemcpyDeviceToHost);
-    //cudaMemcpy(gcei.get(), dev_gridCellEndIndices, sizeof(int) * gridCellCount, cudaMemcpyDeviceToHost);
-    //for (int i = 0; i < gridCellCount; i++) {
-    //    if (gcsi[i] != -1 || gcei[i] != -1) {
-    //        std::cout << i << ", " << gcsi[i] << ", " << gcei[i] << std::endl;
-    //    }
-    //}
-
-    /*std::unique_ptr<glm::vec3[]>dps{ new glm::vec3[numObjects] };
-    std::cout << "before" << std::endl;
-    cudaMemcpy(dps.get(), dev_vel2, sizeof(glm::vec3) * numObjects, cudaMemcpyDeviceToHost);
-    for (int i = 0; i < numObjects; i++) {
-        std::cout << i << ", " << dps[i].x << ", " << dps[i].y << dps[i].z << std::endl;
-    }*/
 
     kernUpdateVelNeighborSearchScattered << <fullBlocksPerGrid, blockSize >> > 
         (numObjects, gridSideCount, gridMinimum,
             gridInverseCellWidth, gridCellWidth,
             dev_gridCellStartIndices, dev_gridCellEndIndices,
             dev_particleArrayIndices, dev_pos, dev_vel1, dev_vel2);
-    
-    /*std::cout << "after" << std::endl;
-    cudaMemcpy(dps.get(), dev_vel2, sizeof(glm::vec3) * numObjects, cudaMemcpyDeviceToHost);
-    for (int i = 0; i < numObjects; i++) {
-        std::cout << i << ", " << dps[i].x << ", " << dps[i].y << dps[i].z << std::endl;
-    }*/
 
     kernUpdatePos << <fullBlocksPerGrid, blockSize >> > (numObjects, dt, dev_pos, dev_vel2);
 
@@ -701,13 +663,6 @@ void Boids::stepSimulationCoherentGrid(float dt) {
     temp = dev_vel2;
     dev_vel2 = dev_temp;
     dev_temp = temp;
-
-    //std::unique_ptr<glm::vec3[]>dps{ new glm::vec3[numObjects] };
-    //// std::cout << "before" << std::endl;
-    //cudaMemcpy(dps.get(), dev_pos, sizeof(glm::vec3) * numObjects, cudaMemcpyDeviceToHost);
-    //for (int i = 0; i < numObjects; i++) {
-    //    std::cout << i << ", " << dps[i].x << ", " << dps[i].y << "," << dps[i].z << std::endl;
-    //}
 
     kernUpdateVelNeighborSearchCoherent << <fullBlocksPerGrid, blockSize >> > (numObjects, gridSideCount, gridMinimum,
         gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_pos, dev_vel1, dev_vel2);
