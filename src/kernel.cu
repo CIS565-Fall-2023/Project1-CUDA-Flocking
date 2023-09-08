@@ -72,6 +72,11 @@ glm::vec3* dev_pos2;//for coherent part arranged
 glm::vec3 *dev_vel1;//for coherent part arranged
 glm::vec3 *dev_vel2;//for coherent part unarranged
 
+cudaEvent_t dev_frameStart;
+cudaEvent_t dev_frameEnd;
+float timeElapsed = 0.f;
+float frameCnt = 0.f;
+
 
 // LOOK-2.1 - these are NOT allocated for you. You'll have to set up the thrust
 // pointers on your own too.
@@ -187,6 +192,12 @@ void Boids::initSimulation(int N) {
   cudaMalloc((void**)&dev_pos2, N * sizeof(glm::vec3));
   checkCUDAErrorWithLine("cudaMalloc dev_pos2 failed!");
 
+  //Cuda event generation
+  cudaEventCreate(&dev_frameStart);
+  checkCUDAErrorWithLine("cudaMalloc dev_frameStart failed!");
+  cudaEventCreate(&dev_frameEnd);
+  checkCUDAErrorWithLine("cudaMalloc dev_frameEnd failed!");
+
   cudaDeviceSynchronize();
 }
 
@@ -201,6 +212,11 @@ void Boids::endSimulation() {
     cudaFree(dev_gridCellStartIndices);
     cudaFree(dev_gridCellEndIndices);
     cudaFree(dev_pos2);
+
+    cudaEventDestroy(dev_frameStart);
+    cudaEventDestroy(dev_frameEnd);
+
+    if(frameCnt>0)std::cout << "average gpu time per frame: " << timeElapsed/frameCnt << " ms" << std::endl;
 }
 /******************
 * copyBoidsToVBO *
@@ -563,20 +579,6 @@ __global__ void kernRearrangeArray(
     vel1[iSelf] = vel2[destId];
 }
 
-//update vel1 to normal order
-__global__ void kernProjectToThread(
-    int N, int* particleArrayIndices,
-    glm::vec3* pos, glm::vec3* vel2,//store the unarranged pos and vel in prev frame
-    glm::vec3* pos2, glm::vec3* vel1 // store the arranged pos and vel to update
-) {
-    int iSelf = blockDim.x * blockIdx.x + threadIdx.x;
-    if (iSelf >= N)return;
-    int boidId = particleArrayIndices[iSelf];
-    pos[boidId] = pos2[iSelf];
-    vel2[boidId] = vel1[iSelf];
-}
-
-
 /**
 * Step the entire N-body simulation by `dt` seconds.
 */
@@ -663,10 +665,10 @@ void Boids::stepSimulationCoherentGrid(float dt) {
     int* gridCellStartIndices = dev_gridCellStartIndices; // grid -> threadBegin
     int* gridCellEndIndices = dev_gridCellEndIndices; // grid -> threadEnd
     int* particleArrayIndices = dev_particleArrayIndices; // thread -> boid id
-    glm::vec3* pos = dev_pos; //unarranged
-    glm::vec3* vel1 = dev_vel1; //arranged
-    glm::vec3* vel2 = dev_vel2;//unarranged
-    glm::vec3* pos2 = dev_pos2;//arranged
+    glm::vec3* pos = dev_pos; //prev frame unsorted for the grid at now
+    glm::vec3* vel1 = dev_vel1; //prev frame unsorted for the grid at now
+    glm::vec3* vel2 = dev_vel2;//going to be sorted for the grid at now
+    glm::vec3* pos2 = dev_pos2;//going to be sorted for the grid at now
 
     // - label each particle with its array index as well as its grid index.
     //   Use 2x width grids.
@@ -692,8 +694,8 @@ void Boids::stepSimulationCoherentGrid(float dt) {
     //after the kern arranged: pos2, vel1
     kernRearrangeArray << <fullBlocksPerGrid, blockSize >> > (
         N, particleArrayIndices,
-        pos, vel2,//store the unarranged pos and vel in prev frame
-        pos2, vel1
+        pos, vel1,//store the unarranged pos and vel in prev frame
+        pos2, vel2
         );
 
     // - Perform velocity updates using neighbor search
@@ -702,27 +704,51 @@ void Boids::stepSimulationCoherentGrid(float dt) {
         N, gridResolution, gridMin,
         inverseCellWidth, cellWidth,
         gridCellStartIndices, gridCellEndIndices,
-        pos2, vel1, vel2//make the vel2 to become arranged
+        pos2, vel2, vel1//make the vel1 to become arranged
         );
     checkCUDAErrorWithLine("kernUpdateVelNeighborSearchCoherent failed!");
 
     // - Update positions
-    kernUpdatePos << <fullBlocksPerGrid, blockSize >> > (N, dt, pos2, vel2);
+    kernUpdatePos << <fullBlocksPerGrid, blockSize >> > (N, dt, pos2, vel1);
     checkCUDAErrorWithLine("kernUpdatePos failed!");
 
     // - BIG DIFFERENCE: use the rearranged array index buffer to reshuffle all
     //   the particle data in the simulation array.
     //   CONSIDER WHAT ADDITIONAL BUFFERS YOU NEED
-    //after the kern arranged: pos2, vel2
-    //unarranged: pos, vel1
-    kernProjectToThread << <fullBlocksPerGrid, blockSize >> > (
-            N, particleArrayIndices,
-            pos, vel1,//store the unarranged pos and vel in prev frame
-            pos2, vel2 // store the arranged pos and vel to update
-        );
     // - Ping-pong buffers as needed. THIS MAY BE DIFFERENT FROM BEFORE.
-    std::swap(dev_vel1, dev_vel2);//now vel2 become unarranged
-    //std::swap(dev_pos,  dev_pos2);
+    std::swap(dev_pos2, dev_pos);
+    //std::swap(dev_vel1, dev_vel2); we already store the vel1 for the next frame
+}
+
+void Boids::stepSimulation(float dt, SIMULATION_TYPE type) {
+    cudaEventRecord(dev_frameStart);
+    switch (type)
+    {
+    case NAIVE:
+    {
+        stepSimulationNaive(dt);
+        break;
+    }
+    case SCATTERED:
+    {
+        stepSimulationScatteredGrid(dt);
+        break;
+    }
+    case COHERENT:
+    {
+        stepSimulationCoherentGrid(dt);
+        break;
+    }
+    default:
+        break;
+    }
+    
+    cudaEventRecord(dev_frameEnd);
+    cudaEventSynchronize(dev_frameEnd);
+    float tmpTime = 0.f;
+    cudaEventElapsedTime(&tmpTime, dev_frameStart, dev_frameEnd);
+    timeElapsed+=tmpTime;
+    ++frameCnt;
 }
 
 

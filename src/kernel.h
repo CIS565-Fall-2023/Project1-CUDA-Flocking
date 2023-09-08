@@ -10,6 +10,7 @@
 #include <vector>
 
 namespace Boids {
+    enum SIMULATION_TYPE{NAIVE,SCATTERED,COHERENT};
     void initSimulation(int N);
     void stepSimulationNaive(float dt);
     void stepSimulationScatteredGrid(float dt);
@@ -18,4 +19,5 @@ namespace Boids {
 
     void endSimulation();
     void unitTest();
+    void stepSimulation(float dt,SIMULATION_TYPE);
 }
