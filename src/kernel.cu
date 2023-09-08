@@ -37,7 +37,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 *****************/
 
 /*! Block size used for CUDA kernel launch. */
-#define blockSize 2
+#define blockSize 128
 
 // LOOK-1.2 Parameters for the boids algorithm.
 // These worked well in our reference implementation.
@@ -158,7 +158,7 @@ void Boids::initSimulation(int N) {
   checkCUDAErrorWithLine("kernGenerateRandomPosArray failed!");
 
   // LOOK-2.1 computing grid params
-  gridCellWidth = 2.0f * std::max(std::max(rule1Distance, rule2Distance), rule3Distance);
+  gridCellWidth = 2 * std::max(std::max(rule1Distance, rule2Distance), rule3Distance);
   int halfSideCount = (int)(scene_scale / gridCellWidth) + 1;
   gridSideCount = 2 * halfSideCount;
 
@@ -431,12 +431,16 @@ __global__ void kernUpdateVelNeighborSearchScattered(
     glm::vec3 keep_away_direction(0);
     glm::vec3 perceived_velocity(0);
     int perceived_velocity_count = 0;
-
     glm::vec3 gridIndex = inverseCellWidth * (pos[index] - gridMin);
+    
 
-    for(int gx = imax(gridIndex.x - 1, 0); gx <= imin(gridIndex.x + 1, N - 1); gx++) {
-        for (int gy = imax(gridIndex.y - 1, 0); gy <= imin(gridIndex.y + 1, N - 1); gy++) {
-            for (int gz = imax(gridIndex.z - 1, 0); gz <= imin(gridIndex.z + 1, N - 1); gz++) {
+    //for (int gx = imax(gridIndex.x - 1, 0); gx <= imin(gridIndex.x + 1, N - 1); gx++) {
+    //    for (int gy = imax(gridIndex.y - 1, 0); gy <= imin(gridIndex.y + 1, N - 1); gy++) {
+    //        for (int gz = imax(gridIndex.z - 1, 0); gz <= imin(gridIndex.z + 1, N - 1); gz++) {
+    glm::vec3 gridBegin = gridIndex - glm::vec3(0.5, 0.5, 0.5);
+    for(int gx = imax(gridBegin.x, 0); gx <= imin(gridBegin.x + 1, N - 1); gx++) {
+        for (int gy = imax(gridBegin.y, 0); gy <= imin(gridBegin.y + 1, N - 1); gy++) {
+            for (int gz = imax(gridBegin.z, 0); gz <= imin(gridBegin.z + 1, N - 1); gz++) {
                 int gi = gridIndex3Dto1D(gx, gy, gz, gridResolution);
                 if (gridCellStartIndices[gi] < 0) { continue; }
 
@@ -508,9 +512,13 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 
     glm::vec3 gridIndex = inverseCellWidth * (pos[index] - gridMin);
 
-    for (int gx = imax(gridIndex.x - 1, 0); gx <= imin(gridIndex.x + 1, N - 1); gx++) {
-        for (int gy = imax(gridIndex.y - 1, 0); gy <= imin(gridIndex.y + 1, N - 1); gy++) {
-            for (int gz = imax(gridIndex.z - 1, 0); gz <= imin(gridIndex.z + 1, N - 1); gz++) {
+    //for (int gx = imax(gridIndex.x - 1, 0); gx <= imin(gridIndex.x + 1, N - 1); gx++) {
+    //    for (int gy = imax(gridIndex.y - 1, 0); gy <= imin(gridIndex.y + 1, N - 1); gy++) {
+    //        for (int gz = imax(gridIndex.z - 1, 0); gz <= imin(gridIndex.z + 1, N - 1); gz++) {
+    glm::vec3 gridBegin = gridIndex - glm::vec3(0.5, 0.5, 0.5);
+    for (int gx = imax(gridBegin.x, 0); gx <= imin(gridBegin.x + 1, N - 1); gx++) {
+        for (int gy = imax(gridBegin.y, 0); gy <= imin(gridBegin.y + 1, N - 1); gy++) {
+            for (int gz = imax(gridBegin.z, 0); gz <= imin(gridBegin.z + 1, N - 1); gz++) {
                 int gi = gridIndex3Dto1D(gx, gy, gz, gridResolution);
                 if (gridCellStartIndices[gi] < 0) { continue; }
 
