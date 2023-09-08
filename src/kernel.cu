@@ -16,6 +16,7 @@
 #endif
 
 #define checkCUDAErrorWithLine(msg) checkCUDAError(msg, __LINE__)
+//#define GRID_TEST_27_NEIGHBOURS
 
 /**
 * Check for CUDA errors; print and exit if there was a problem.
@@ -429,12 +430,17 @@ __global__ void kernUpdateVelNeighborSearchScattered(
     int rule3Boids = 0;
 
     // - Identify the grid cell that this particle is in
-    glm::vec3 gridIdx3d = (pos[index] - gridMin) * inverseCellWidth;
+    glm::ivec3 gridIdx3d = (pos[index] - gridMin) * inverseCellWidth;
 
     // - Identify which cells may contain neighbors. This isn't always 8.
     float dist = cellWidth * 0.5f;
-    glm::ivec3 start = (pos[index] - dist - gridMin) * inverseCellWidth;
-    glm::ivec3 end = (pos[index] + dist - gridMin) * inverseCellWidth;
+#ifdef GRID_TEST_27_NEIGHBOURS
+    glm::ivec3 start = gridIdx3d - glm::ivec3(1);
+    glm::ivec3 end = gridIdx3d + glm::ivec3(1);
+#else
+    glm::ivec3 start = (pos[index] - cellWidth - gridMin) * inverseCellWidth;
+    glm::ivec3 end = (pos[index] + cellWidth - gridMin) * inverseCellWidth;
+#endif
 
     for (int x = start.x; x <= end.x; x++)
     {
