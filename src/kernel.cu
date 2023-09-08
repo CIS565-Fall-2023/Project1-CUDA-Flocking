@@ -23,11 +23,11 @@
 void checkCUDAError(const char *msg, int line = -1) {
   cudaError_t err = cudaGetLastError();
   if (cudaSuccess != err) {
-    if (line >= 0) {
-      fprintf(stderr, "Line %d: ", line);
-    }
-    fprintf(stderr, "Cuda error: %s: %s.\n", msg, cudaGetErrorString(err));
-    exit(EXIT_FAILURE);
+	if (line >= 0) {
+	  fprintf(stderr, "Line %d: ", line);
+	}
+	fprintf(stderr, "Cuda error: %s: %s.\n", msg, cudaGetErrorString(err));
+	exit(EXIT_FAILURE);
   }
 }
 
@@ -126,10 +126,10 @@ __host__ __device__ glm::vec3 generateRandomVec3(float time, int index) {
 __global__ void kernGenerateRandomPosArray(int time, int N, glm::vec3 * arr, float scale) {
   int index = (blockIdx.x * blockDim.x) + threadIdx.x;
   if (index < N) {
-    glm::vec3 rand = generateRandomVec3(time, index);
-    arr[index].x = scale * rand.x;
-    arr[index].y = scale * rand.y;
-    arr[index].z = scale * rand.z;
+	glm::vec3 rand = generateRandomVec3(time, index);
+	arr[index].x = scale * rand.x;
+	arr[index].y = scale * rand.y;
+	arr[index].z = scale * rand.z;
   }
 }
 
@@ -153,7 +153,7 @@ void Boids::initSimulation(int N) {
 
   // LOOK-1.2 - This is a typical CUDA kernel invocation.
   kernGenerateRandomPosArray<<<fullBlocksPerGrid, blockSize>>>(1, numObjects,
-    dev_pos, scene_scale);
+	dev_pos, scene_scale);
   checkCUDAErrorWithLine("kernGenerateRandomPosArray failed!");
 
   // LOOK-2.1 computing grid params
@@ -186,10 +186,10 @@ __global__ void kernCopyPositionsToVBO(int N, glm::vec3 *pos, float *vbo, float 
   float c_scale = -1.0f / s_scale;
 
   if (index < N) {
-    vbo[4 * index + 0] = pos[index].x * c_scale;
-    vbo[4 * index + 1] = pos[index].y * c_scale;
-    vbo[4 * index + 2] = pos[index].z * c_scale;
-    vbo[4 * index + 3] = 1.0f;
+	vbo[4 * index + 0] = pos[index].x * c_scale;
+	vbo[4 * index + 1] = pos[index].y * c_scale;
+	vbo[4 * index + 2] = pos[index].z * c_scale;
+	vbo[4 * index + 3] = 1.0f;
   }
 }
 
@@ -197,10 +197,10 @@ __global__ void kernCopyVelocitiesToVBO(int N, glm::vec3 *vel, float *vbo, float
   int index = threadIdx.x + (blockIdx.x * blockDim.x);
 
   if (index < N) {
-    vbo[4 * index + 0] = vel[index].x + 0.3f;
-    vbo[4 * index + 1] = vel[index].y + 0.3f;
-    vbo[4 * index + 2] = vel[index].z + 0.3f;
-    vbo[4 * index + 3] = 1.0f;
+	vbo[4 * index + 0] = vel[index].x + 0.3f;
+	vbo[4 * index + 1] = vel[index].y + 0.3f;
+	vbo[4 * index + 2] = vel[index].z + 0.3f;
+	vbo[4 * index + 3] = 1.0f;
   }
 }
 
@@ -242,9 +242,16 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
 */
 __global__ void kernUpdateVelocityBruteForce(int N, glm::vec3 *pos,
   glm::vec3 *vel1, glm::vec3 *vel2) {
-  // Compute a new velocity based on pos and vel1
-  // Clamp the speed
-  // Record the new velocity into vel2. Question: why NOT vel1?
+	int index = threadIdx.x + (blockIdx.x * blockDim.x);
+	if (index >= N) {
+		return;
+	}
+	// Compute a new velocity based on pos and vel1
+	glm::vec3 newVelocity = computeVelocityChange(N, index, &pos[index], &vel1[index]);
+	// Clamp the speed
+	newVelocity = glm::clamp(newVelocity, glm::vec3(0.f), glm::vec3(maxSpeed));
+	// Record the new velocity into vel2. Question: why NOT vel1?
+	vel2[index] = newVelocity;
 }
 
 /**
@@ -255,7 +262,7 @@ __global__ void kernUpdatePos(int N, float dt, glm::vec3 *pos, glm::vec3 *vel) {
   // Update position by velocity
   int index = threadIdx.x + (blockIdx.x * blockDim.x);
   if (index >= N) {
-    return;
+	return;
   }
   glm::vec3 thisPos = pos[index];
   thisPos += vel[index] * dt;
@@ -285,10 +292,10 @@ __device__ int gridIndex3Dto1D(int x, int y, int z, int gridResolution) {
 __global__ void kernComputeIndices(int N, int gridResolution,
   glm::vec3 gridMin, float inverseCellWidth,
   glm::vec3 *pos, int *indices, int *gridIndices) {
-    // TODO-2.1
-    // - Label each boid with the index of its grid cell.
-    // - Set up a parallel array of integer indices as pointers to the actual
-    //   boid data in pos and vel1/vel2
+	// TODO-2.1
+	// - Label each boid with the index of its grid cell.
+	// - Set up a parallel array of integer indices as pointers to the actual
+	//   boid data in pos and vel1/vel2
 }
 
 // LOOK-2.1 Consider how this could be useful for indicating that a cell
@@ -296,7 +303,7 @@ __global__ void kernComputeIndices(int N, int gridResolution,
 __global__ void kernResetIntBuffer(int N, int *intBuffer, int value) {
   int index = (blockIdx.x * blockDim.x) + threadIdx.x;
   if (index < N) {
-    intBuffer[index] = value;
+	intBuffer[index] = value;
   }
 }
 
@@ -424,8 +431,8 @@ void Boids::unitTest() {
 
   std::cout << "before unstable sort: " << std::endl;
   for (int i = 0; i < N; i++) {
-    std::cout << "  key: " << intKeys[i];
-    std::cout << " value: " << intValues[i] << std::endl;
+	std::cout << "  key: " << intKeys[i];
+	std::cout << " value: " << intValues[i] << std::endl;
   }
 
   // How to copy data to the GPU
@@ -445,8 +452,8 @@ void Boids::unitTest() {
 
   std::cout << "after unstable sort: " << std::endl;
   for (int i = 0; i < N; i++) {
-    std::cout << "  key: " << intKeys[i];
-    std::cout << " value: " << intValues[i] << std::endl;
+	std::cout << "  key: " << intKeys[i];
+	std::cout << " value: " << intValues[i] << std::endl;
   }
 
   // cleanup
