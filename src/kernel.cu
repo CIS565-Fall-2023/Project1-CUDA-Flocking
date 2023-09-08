@@ -456,6 +456,9 @@ __global__ void kernUpdateVelNeighborSearchScattered(
                         if (dist < rule3Distance) {
                             perceived_velocity += vel1[neighborIdx];
                             num_neighbors_rule3++;
+                        }
+                    }
+                }
             }
         }
     }
@@ -555,7 +558,7 @@ void Boids::stepSimulationScatteredGrid(float dt) {
     kernIdentifyCellStartEnd << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
     checkCUDAErrorWithLine("kernIdentifyCellStartEnd failed!");
 
-    kernUpdateVelNeighborSearchScattered << <fullBlocksPerGrid, blockSize >> > (numObjects, gridSideCount, gridMinimum, gridInverseCellWidth, cellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_particleArrayIndices, dev_pos, dev_vel1, dev_vel2);
+    kernUpdateVelNeighborSearchScattered << <fullBlocksPerGrid, blockSize >> > (numObjects, gridSideCount, gridMinimum, gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_particleArrayIndices, dev_pos, dev_vel1, dev_vel2);
     checkCUDAErrorWithLine("kernUpdateVelNeighborSearchScattered failed!");
 
     kernUpdatePos << <fullBlocksPerGrid, blockSize >> > (numObjects, dt, dev_pos, dev_vel2);
