@@ -254,9 +254,7 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
   // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
   // Rule 2: boids try to stay a distance d away from each other
   // Rule 3: boids try to match the speed of surrounding boids
-    glm::vec3 perceived_center(0.0f);
-    glm::vec3 c(0.0f);
-    glm::vec3 perceived_velocity(0.0f);
+    glm::vec3 perceived_center(0.0f), c(0.0f), perceived_velocity(0.0f);
     glm::vec3 result(0.0f);
 
     int number_of_neighbors_rule1 = 0;
@@ -266,7 +264,7 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
         if (i != iSelf) {
             float dist = glm::length(pos[i] - pos[iSelf]);
 
-            //first Rule
+            //First Rule
             if (dist < rule1Distance) {
                 perceived_center += pos[i];
                 number_of_neighbors_rule1++;
@@ -277,7 +275,7 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
                 c -= (pos[i] - pos[iSelf]);
             }
 
-            //Third Rule 3
+            //Third Rule
             if (dist < rule3Distance) {
                 perceived_velocity += vel[i];
                 number_of_neighbors_rule3++;
@@ -430,9 +428,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
         return;
     }
 
-    glm::vec3 perceived_center(0.0f);
-    glm::vec3 c(0.0f);
-    glm::vec3 perceived_velocity(0.0f);
+    glm::vec3 perceived_center(0.0f), c(0.0f), perceived_velocity(0.0f);
     int num_neighbors_rule1 = 0;
     int num_neighbors_rule3 = 0;
 
@@ -463,7 +459,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
                         glm::vec3 neighborPos = pos[neighborIdx];
                         float dist = glm::length(neighborPos - pos[index]);
 
-                        //first Rule
+                        //First Rule
                         if (dist < rule1Distance) {
                             perceived_center += neighborPos;
                             num_neighbors_rule1++;
@@ -529,9 +525,7 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
         return;
     }
 
-    glm::vec3 perceived_center(0.0f);
-    glm::vec3 c(0.0f);
-    glm::vec3 perceived_velocity(0.0f);
+    glm::vec3 perceived_center(0.0f), c(0.0f), perceived_velocity(0.0f);
     int num_neighbors_rule1 = 0;
     int num_neighbors_rule3 = 0;
 
@@ -561,18 +555,18 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
                         glm::vec3 neighborPos = pos[i];
                         float dist = glm::length(neighborPos - pos[index]);
 
-                        // Rule 1
+                        //First Rule
                         if (dist < rule1Distance) {
                             perceived_center += neighborPos;
                             num_neighbors_rule1++;
                         }
 
-                        // Rule 2
+                        //Second Rule
                         if (dist < rule2Distance) {
                             c -= (neighborPos - pos[index]);
                         }
 
-                        // Rule 3
+                        //Third Rule
                         if (dist < rule3Distance) {
                             perceived_velocity += vel1[i];
                             num_neighbors_rule3++;
