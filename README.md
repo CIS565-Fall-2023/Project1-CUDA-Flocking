@@ -9,13 +9,13 @@ Project 1 - Flocking**
 ### Banner
 
 * `N_FOR_VIS = 5,000; scene_scale=100.0f`
-![](./images/banner.gif)
+![](images/banner.gif)
 
 * `N_FOR_VIS = 500,000; scene_scale=200.0f`
-![](./images/banner3.gif)
+![](images/banner3.gif)
 
 * `N_FOR_VIS = 2,000,000; scene_scale=600.0f`
-![](./images/banner2.gif)
+![](images/banner2.gif)
 
 
 ### Performance Analysis
@@ -23,10 +23,10 @@ Project 1 - Flocking**
 #### Results
 
 - Framerate change with increasing # of boids for naive, scattered uniform grid, and coherent uniform grid (with and without visualization)
-![](./images/boids_no_visual.png)
-![](./images/boids_with_visual.png)
+![](images/boids_no_visual.png)
+![](images/boids_with_visual.png)
 - Framerate change with increasing block size
-![](./images/increasing_gridSize.png)
+![](images/increasing_gridSize.png)
 
 #### Questions
 
@@ -40,7 +40,7 @@ Project 1 - Flocking**
   * The performace improvements did not occur until the number of boids is increased to a certain amount. This should be the case. In a rather small amount of boids, the time saved by the coherent array is not higher than the time used to reallocate the array. 
 * Did changing cell width and checking 27 vs 8 neighboring cells affect performance? Why or why not? Be careful: it is insufficient (and possibly incorrect) to say that 27-cell is slower simply because there are more cells to check!
   * Yes. According to the stats, 27 neighboring slows down performance mainly at a middle amount of boids. 27-cell is slower mainly because there are a lot of waste spent on checking irrelevant cells. There are at least 19 cells we can ensure that no adjacent boids are in.
-  ![](./images/27vs8_no_visual.png)
+  ![](images/27vs8_no_visual.png)
 
 
 ## Part 4: Write-up
