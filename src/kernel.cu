@@ -54,6 +54,8 @@ void checkCUDAError(const char *msg, int line = -1) {
 /*! Size of the starting area in simulation space. */
 #define scene_scale 100.0f
 
+#define SEARCH_27 1
+
 /***********************************************
 * Kernel state (pointers are device pointers) *
 ***********************************************/
@@ -159,7 +161,11 @@ void Boids::initSimulation(int N) {
   checkCUDAErrorWithLine("kernGenerateRandomPosArray failed!");
 
   // LOOK-2.1 computing grid params
+#if SEARCH_27 
+  gridCellWidth = std::max(std::max(rule1Distance, rule2Distance), rule3Distance);
+#else
   gridCellWidth = 2.0f * std::max(std::max(rule1Distance, rule2Distance), rule3Distance);
+#endif
   int halfSideCount = (int)(scene_scale / gridCellWidth) + 1;
   gridSideCount = 2 * halfSideCount;
 
@@ -192,7 +198,6 @@ void Boids::initSimulation(int N) {
 
   cudaDeviceSynchronize();
 }
-
 
 /******************
 * copyBoidsToVBO *
@@ -414,14 +419,14 @@ __global__ void kernIdentifyCellStartEnd(int N, int *particleGridIndices,
         gridCellEndIndices[particleGridIndices[index]] = index;
 }
 
-__device__ void UpdateVelNeighborSearchScatteredHelp(int grid, int iSelf, 
+__device__ void UpdateVelNeighborSearchScatteredHelp(int grid, int gridCount, int iSelf,
                                                      int* gridCellStartIndices, int* gridCellEndIndices,
                                                      int* particleArrayIndices,
                                                      glm::vec3* pos, glm::vec3* vel,
                                                      glm::vec3& perceived_center, glm::vec3& v2, glm::vec3& v3,
                                                      int& neighbor_count_1, int& neighbor_count_3) 
 {
-    if (gridCellStartIndices[grid] < 0) return;
+    if (grid < 0 || grid >= gridCount || gridCellStartIndices[grid] < 0) return;
 
     // foreach cell check particles
     for (int i = gridCellStartIndices[grid]; i <= gridCellEndIndices[grid]; ++i)
@@ -448,7 +453,7 @@ __device__ void UpdateVelNeighborSearchScatteredHelp(int grid, int iSelf,
     }
 }
 
-__global__ void kernUpdateVelNeighborSearchScattered(int N, int gridResolution, glm::vec3 gridMin,
+__global__ void kernUpdateVelNeighborSearchScattered(int N, int gridCount, int gridResolution, glm::vec3 gridMin,
                                                      float inverseCellWidth, float cellWidth,
                                                      int *gridCellStartIndices, int *gridCellEndIndices,
                                                      int *particleArrayIndices,
@@ -488,7 +493,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(int N, int gridResolution, 
                                      y * gridResolution * ioffset[1] +
                                      z * gridResolution * gridResolution * ioffset[2];
 
-                UpdateVelNeighborSearchScatteredHelp(grid, index,
+                UpdateVelNeighborSearchScatteredHelp(grid, gridCount, index,
                                                     gridCellStartIndices, gridCellEndIndices,
                                                     particleArrayIndices, pos, vel1,
                                                     perceived_center, v2, v3,
@@ -534,13 +539,13 @@ __global__ void kernReshuffledPosVel(int N, int* particleArrayIndices,
     vel_reshuffled[index] = vel[particleArrayIndices[index]];
 }
 
-__device__ void UpdateVelNeighborSearchCoherentHelp(int grid, int iSelf, const glm::vec3& position,
+__device__ void UpdateVelNeighborSearchCoherentHelp(int grid, int gridCount, int iSelf, const glm::vec3& position,
                                                      int* gridCellStartIndices, int* gridCellEndIndices,
                                                      glm::vec3* pos, glm::vec3* vel,
                                                      glm::vec3& perceived_center, glm::vec3& v2, glm::vec3& v3,
                                                      int& neighbor_count_1, int& neighbor_count_3)
 {
-    if (gridCellStartIndices[grid] < 0) return;
+    if (grid < 0 || grid >= gridCount || gridCellStartIndices[grid] < 0) return;
 
     // foreach cell check particles
     for (int i = gridCellStartIndices[grid]; i <= gridCellEndIndices[grid]; ++i)
@@ -566,7 +571,7 @@ __device__ void UpdateVelNeighborSearchCoherentHelp(int grid, int iSelf, const g
     }
 }
 
-__global__ void kernUpdateVelNeighborSearchCoherent(int N, int gridResolution, glm::vec3 gridMin,
+__global__ void kernUpdateVelNeighborSearchCoherent(int N, int gridCount, int gridResolution, glm::vec3 gridMin,
                                                     float inverseCellWidth, float cellWidth,
                                                     int *gridCellStartIndices, int *gridCellEndIndices,
                                                     glm::vec3 *pos, glm::vec3 *vel1, glm::vec3 *vel2) 
@@ -602,6 +607,26 @@ __global__ void kernUpdateVelNeighborSearchCoherent(int N, int gridResolution, g
     glm::vec3 perceived_center(0.f);
     int neighbor_count_1(0), neighbor_count_3(0);
 
+#if SEARCH_27 
+    for (int z = -1; z < 2; ++z)
+    {
+        for (int y = -1; y < 2; ++y)
+        {
+            for (int x = -1; x < 2; ++x)
+            {
+                int grid = grid_id + x * ioffset[0] +
+                    y * gridResolution * ioffset[1] +
+                    z * gridResolution * gridResolution * ioffset[2];
+
+                UpdateVelNeighborSearchCoherentHelp(grid, gridCount, index, position,
+                    gridCellStartIndices, gridCellEndIndices,
+                    pos, vel1,
+                    perceived_center, v2, v3,
+                    neighbor_count_1, neighbor_count_3);
+            }
+        }
+    }
+#else
     for (int z = 0; z < 2; ++z)
     {
         for (int y = 0; y < 2; ++y)
@@ -612,7 +637,7 @@ __global__ void kernUpdateVelNeighborSearchCoherent(int N, int gridResolution, g
                     y * gridResolution * ioffset[1] +
                     z * gridResolution * gridResolution * ioffset[2];
     
-                UpdateVelNeighborSearchCoherentHelp(grid, index, position,
+                UpdateVelNeighborSearchCoherentHelp(grid, gridCount, index, position,
                                                     gridCellStartIndices, gridCellEndIndices,
                                                     pos, vel1,
                                                     perceived_center, v2, v3,
@@ -620,7 +645,7 @@ __global__ void kernUpdateVelNeighborSearchCoherent(int N, int gridResolution, g
             }
         }
     }
-    
+#endif
     if (neighbor_count_1 > 0)
     {
         perceived_center /= static_cast<float>(neighbor_count_1);
@@ -700,7 +725,7 @@ void Boids::stepSimulationScatteredGrid(float dt) {
     checkCUDAErrorWithLine("IdentifyCellStartEnd failed!");
     cudaDeviceSynchronize();
 
-    kernUpdateVelNeighborSearchScattered <<< fullBlocksPerGrid, blockSize >>> (numObjects, gridSideCount, gridMinimum,
+    kernUpdateVelNeighborSearchScattered <<< fullBlocksPerGrid, blockSize >>> (numObjects, gridCellCount, gridSideCount, gridMinimum,
                                                                                 gridInverseCellWidth, gridCellWidth,
                                                                                 dev_gridCellStartIndices, dev_gridCellEndIndices, 
                                                                                 dev_particleArrayIndices,
@@ -770,7 +795,7 @@ void Boids::stepSimulationCoherentGrid(float dt) {
     std::swap(dev_pos, dev_pos_reshuffled);
     std::swap(dev_vel1, dev_vel2);
 
-    kernUpdateVelNeighborSearchCoherent << < fullBlocksPerGrid, blockSize >> > (numObjects, gridSideCount, gridMinimum,
+    kernUpdateVelNeighborSearchCoherent << < fullBlocksPerGrid, blockSize >> > (numObjects, gridCellCount, gridSideCount, gridMinimum,
                                                                                     gridInverseCellWidth, gridCellWidth,
                                                                                     dev_gridCellStartIndices, dev_gridCellEndIndices,
                                                                                     dev_pos, dev_vel1, dev_vel2);

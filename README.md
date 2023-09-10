@@ -6,8 +6,84 @@ Project 1 - Flocking**
 * Tested on: Windows 11, i9-13980HX @ 2.22GHz 64.0 GB, RTX4090-Laptop 16384MB
 
 ## Outcome Summary
-||boid = 5000 |boid = 100000|boid = 1000000|boid = 10000000|
-|------------- |-------------|-------------|-------------|-------------|
-|scene scale = 100.f|![](https://media.giphy.com/media/SUBgjPfontNnvh7cnQ/giphy.gif)<sub>1500fps</sub>|![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExM3F1ZDF0ODEwMTl3c3o2OHM3aXg1c2l2bjVmNXZzMW82Y2FycWJwNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/5NPWXIu5iu7zIBWT9x/giphy.gif)<sub>960fps</sub>|![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExZ2d0N21jMjZjYW0wOW05dDNrNHI2MjYwZWR6ZXNrd3cwN2c2ZzB3YiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/Fc5eFrtbwvt2F7VsVB/giphy.gif)<sub>235fps</sub>|![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExN3NrZDR3amh1bWJ4ZGY3Y3JnbXAzM21rM2N0eXV5NHh5MnZ1OXFscCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/GMCl577c5DQoZyvaPP/giphy.gif)<sub>4fps</sub>|
-|scene scale = 500.f|![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYWh5MG5mdmR5eXdwMnhuMDJzMmp6ejlkZmFweXQ1eTJyN2I2ajZ5NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/KkHsfVquKqJAfSAzje/giphy.gif)<sub>1730fps</sub>|![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExazZxZ3I4ZGp6YjN1YXFxbDd3Z3kwYW55enQ3NXdhejZvc2lhb25sdCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/43LRlI3E7ydi5Nh4wp/giphy.gif)<sub>1000fps</sub>|![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeW10ODRhZjZzb3V4N3VkcW9lb2g3dmVzcnFjcXFvOXMwcTdoNWNoYSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/bvmQVluk06nMKxAo0l/giphy.gif)<sub>440fps</sub>|![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExNXh1Mnp1ejkyanZtZGMycmNxdXRma3AycmJ6OXJidjdjNHN2b3JmOSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/zI0TgdgozKtym2oH9S/giphy.gif)<sub>61fps</sub>|
-|scene scale = 1000.f|![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExbmJ1ZGZ6bndycHlwYmg1dm9kOGFuNG9ndTk4eHZuamU4d3FnaTlmeCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/75R7lnhJ6rrTHZ7ZIH/giphy.gif)<sub>1340fps</sub>|![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTA4cjJ2cnJ1d2d5ZDE3OXRvd3Jtb2IxZGU5eWRiZGlmc2t2NHVsZSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/8sKQXgKH2PavU2C7pJ/giphy.gif)<sub>860fps</sub>|![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExaGQ3dDFyZ2R3M3NlMXpxczhhdWJmMGZwNm8wbHJnZW91Z29pMmJ6NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/dISEHcsxl8j2qHkgKS/giphy.gif)<sub>360fps</sub>|![](https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeHQ4cjZja2hnc3U1NjhqZDVlNWd4azMzaHUzcWpvdjI1OW02ZDFtOSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/eFMAD5GMCSn32BdmMR/giphy.gif)<sub>70fps</sub>|
+**Record in coherent grid mode** 
+||boid = 5000 |boid = 100000| boid = 10000000|
+|------------- |-------------|-------------|-------------|
+|scene scale = 100.f|![](./gif/b_5000_s_100.gif)|![](./gif/b_100000_s_100.gif)|![](./gif/b_10000000_s_100.gif)|
+
+||boid = 100000 |boid = 1000000| boid = 10000000|
+|------------- |-------------|-------------|-------------|
+|scene scale = 500.f|![](./gif/b_100000_s_500.gif)|![](./gif/b_1000000_s_500.gif)|![](./gif/b_10000000_s_500.gif)|
+
+## Performance Analysis
+In general, with the increase of the number of boids, the frame rate drops. When the number of boid is large (like 10000000), increasing the scene scale (increase the number of grid) can improve the frame rate.
+
+- ### For each implementation, how does changing the number of boids affect performance? Why do you think this is?
+|Block Size|Scene Scale|
+|-----------|----------- |
+|128|100.0|
+
+|With Visualization|Without Visualization|
+|-----------|-----------|
+|![](./images/fps_wrt_boids.png)|![](./images/fps_wrt_boids_nv.png)|
+
+According to the statistic result, 
+- **Naive method**: the fps drops with the increase of the number of boids.
+- **Uniform Grid method**: the fps drops with the increase of the number of boids, except when there are 25000 boids.
+- **Coherent Grid method**: the fps drops with the increase of the number of boids, except when there are 25000 boids.
+
+For the **Naive method**, each boid needs to traverse all boids when update velocity. While for the **Uniform Grid** and **Coherent Grid** method, each boid just traverse boids locating its neighbor grids. The increase of the number of the boids causes to the significant drop of fps for **Naive method**. **Uniform Grid** and **Coherent Grid** methods divide the scene into grids which also divide the increase of the number of the boids, and therefore make the fps drop moderately.
+
+Besides, there is a "middleman", which related to an extra indirect addressing, in **Uniform Grid** method while compared to the **Coherent Grid** method. Therefore, for the performance, **Coherent Grid** > **Uniform Grid** > **Naive method**.
+
+Finally, for the abnormal fps drop at **boids = 25000**, This might because there are not enough boids in neighbor grids and there is not enough computation to hide memory latency.
+
+- ### For each implementation, how does changing the block count and block size affect performance? Why do you think this is?
+|Scene Scale|With Visualization|
+|-----------|-----------|
+|100.0|No|
+
+To record a stable fps, I tested the **Naive method** on 100000 boids while tested **Uniform Grid** and **Coherent Grid** on 1000000 boids.
+
+|1000000 Boids|100000 Boids|
+|-----------|-----------|
+|![](./images/fps_wrt_blocksize_1.png)|![](./images/fps_wrt_blocksize_2.png)|
+
+According to the statistic result, in all three methods, the fps increase when increase the size of block, the fps firstly increase (from 8 to 32), subsequently keep stable (from 32 to 512), and finally drop (from 512 to 1024).
+
+![](./images/nsight_block.png)
+
+According to the NSight Compute profile result, when block size is small, which is smaller than 32, ***some threads in a warp are masked off and those hardware resources are unused***. Thus, fps increase with the increase of block size when it is smaller than 32.
+
+![](./images/nsight_occupancy.png)
+According to the NSight Compute profile result, when block size is large, since the total number of register in each SM is limited, the number of active thread is limited, which leads to the performance drop. 
+
+- ### For the coherent uniform grid: did you experience any performance improvements with the more coherent uniform grid? Was this the outcome you expected? Why or why not?
+
+|Block Size|# of Boids|
+|-----------|----------- |
+|128|10000000.0|
+
+|scene scale = 100.0|scene scale = 500.0|
+|-----------|-----------|
+|![](./gif/b_10000000_s_100.gif)|![](./gif/b_10000000_s_500.gif)|
+
+As shown in the gif, under the condition that **10000000 Boids**, there is a significant improvement in fps when scene scale changed from 100 to 500, which is because larger scene scale leads to more grids and less boids per grid, and therefore less neighbor traverse time for each boid. 
+
+- ### Did changing cell width and checking 27 vs 8 neighboring cells affect performance?
+|Block Size|# of Boids|Scene scale|Method|
+|-----------|-----------|-----------|-----------|
+|128|2000000|100.0|Coherent Grid|
+
+||8 neighboring cells|27 neighboring cells|
+|-----------|-----------|-----------|
+|fps|80.1|131.2|
+
+According to the testing result, when check 27 neighbor grids, there is a significant fps improvement! This might because we ***halved the grid cell width***:
+![](./images/demo_1.png)
+
+And therefore,
+
+![](./images/demo_2.png)
+
+The search area become smaller, which means less boids each boid need to traverse. Therefore, the seaching become more efficient.
