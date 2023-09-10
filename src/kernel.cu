@@ -424,19 +424,30 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 	if (index >= N) return;
 
 	glm::vec3 boidPos = pos[index];
-	glm::ivec3 cellLowerBound = glm::ivec3((boidPos - cellWidth - gridMin) * inverseCellWidth);
-	glm::ivec3 cellUpperBound = glm::ivec3((boidPos + cellWidth - gridMin) * inverseCellWidth);
+	// glm::ivec3 cellLowerBound = glm::ivec3((boidPos - cellWidth - gridMin) * inverseCellWidth);
+	// glm::ivec3 cellUpperBound = glm::ivec3((boidPos + cellWidth - gridMin) * inverseCellWidth);
+	glm::vec3 gridIndex3D = glm::ivec3((boidPos - gridMin) * inverseCellWidth);
 
 	glm::vec3 perceived_center(0.0f), separation(0.0f), perceived_velocity(0.0f);
 	int rule1Count = 0, rule3Count = 0;
 
 	// cell range
+	/*
 	int minX = imax(0, cellLowerBound.x - 1);
 	int maxX = imin(gridResolution - 1, cellUpperBound.x + 1);
 	int minY = imax(0, cellLowerBound.y - 1);
 	int maxY = imin(gridResolution - 1, cellUpperBound.y + 1);
 	int minZ = imax(0, cellLowerBound.z - 1);
 	int maxZ = imin(gridResolution - 1, cellUpperBound.z + 1);
+	*/
+
+	int minX = imax(0, gridIndex3D.x - 1);
+	int maxX = imin(gridResolution - 1, gridIndex3D.x + 1);
+	int minY = imax(0, gridIndex3D.y - 1);
+	int maxY = imin(gridResolution - 1, gridIndex3D.y + 1);
+	int minZ = imax(0, gridIndex3D.z - 1);
+	int maxZ = imin(gridResolution - 1, gridIndex3D.z + 1);
+
 
 
 	for (int z = minZ; z <= maxZ; ++z) {
