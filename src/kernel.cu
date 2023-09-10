@@ -401,34 +401,6 @@ __global__ void kernReshuffleBoidBuffers(int N, const int* particleArrayIndices,
   vel2[index] = vel1[particleArrayIndices[index]];
 }
 
-__device__ void addNeighborInfluenceScattered(glm::vec3* pos, glm::vec3* vel,
-  int* particleArrayIndices, int startInd, int endInd, int iSelf,
-  glm::vec3* pCenter, glm::vec3* pRepell, glm::vec3* pVel, 
-  int* rule1Neighbors, int* rule3Neighbors) {
-  if (startInd < 0) {
-    // -1 startInd means no boids in cell
-    return;
-  }
-  for (int i = startInd; i <= endInd; i++) {
-    int ind = particleArrayIndices[i];
-    float distance = glm::length(pos[iSelf] - pos[ind]);
-    // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
-    if (distance < rule1Distance) {
-      *pCenter += pos[ind];
-      *rule1Neighbors += 1;
-    }
-    // Rule 2: boids try to stay a distance d away from each other
-    if (distance < rule2Distance) {
-      *pRepell -= pos[ind] - pos[iSelf];
-    }
-    // Rule 3: boids try to match the speed of surrounding boids
-    if (distance < rule3Distance) {
-      *pVel += vel[ind];
-      *rule3Neighbors += 1;
-    }
-  }
-}
-
 __global__ void kernUpdateVelNeighborSearchScattered(
   int N, int gridResolution, glm::vec3 gridMin,
   float inverseCellWidth, float cellWidth,
@@ -455,47 +427,45 @@ __global__ void kernUpdateVelNeighborSearchScattered(
   int rule3Neighbors = 0;
   glm::vec3 deltaVel(0.f);
 
-  float maxCheckDist = cellWidth / 2;
-  // check current cell
+  float maxCheckDist = imax(imax(rule1Distance, rule2Distance), rule3Distance) * inverseCellWidth;
   glm::vec3 cell3D = (pos[index] - gridMin) * inverseCellWidth;
-  int curCell = gridIndex3Dto1D((int)(cell3D.x), (int)(cell3D.y), (int)(cell3D.z), gridResolution);
-  addNeighborInfluenceScattered(pos, vel1, particleArrayIndices, gridCellStartIndices[curCell], gridCellEndIndices[curCell],
-    index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
-  // check +x cell
-  if (imin((cell3D.x + maxCheckDist), gridResolution - 1) > (int) cell3D.x) {
-    int checkCell = curCell + 1;
-    addNeighborInfluenceScattered(pos, vel1, particleArrayIndices, gridCellStartIndices[checkCell], gridCellEndIndices[checkCell],
-      index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
-  }
-  // check -x cell
-  if (imax((cell3D.x - maxCheckDist), 0) < (int) cell3D.x) {
-    int checkCell = curCell - 1;
-    addNeighborInfluenceScattered(pos, vel1, particleArrayIndices, gridCellStartIndices[checkCell], gridCellEndIndices[checkCell],
-      index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
-  }
-  // check +y cell
-  if (imin((cell3D.y + maxCheckDist), gridResolution - 1) > (int) cell3D.y) {
-    int checkCell = curCell + gridResolution;
-    addNeighborInfluenceScattered(pos, vel1, particleArrayIndices, gridCellStartIndices[checkCell], gridCellEndIndices[checkCell],
-      index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
-  }
-  // check -y cell
-  if (imax((cell3D.y - maxCheckDist), 0) < (int) cell3D.y) {
-    int checkCell = curCell - gridResolution;
-    addNeighborInfluenceScattered(pos, vel1, particleArrayIndices, gridCellStartIndices[checkCell], gridCellEndIndices[checkCell],
-      index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
-  }
-  // check +z cell
-  if (imin((cell3D.z + maxCheckDist), gridResolution - 1) > (int) cell3D.z) {
-    int checkCell = curCell + gridResolution * gridResolution;
-    addNeighborInfluenceScattered(pos, vel1, particleArrayIndices, gridCellStartIndices[checkCell], gridCellEndIndices[checkCell],
-      index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
-  }
-  // check -z cell
-  if (imax((cell3D.z - maxCheckDist), 0) < (int) cell3D.z) {
-    int checkCell = curCell - gridResolution * gridResolution;
-    addNeighborInfluenceScattered(pos, vel1, particleArrayIndices, gridCellStartIndices[checkCell], gridCellEndIndices[checkCell],
-      index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
+  // check grid cube that encompasses all of rule interaction sphere
+  int xMax = imin((int)(cell3D.x + maxCheckDist), gridResolution - 1);
+  int xMin = imax((int)(cell3D.x - maxCheckDist), 0);
+  int yMax = imin((int)(cell3D.y + maxCheckDist), gridResolution - 1);
+  int yMin = imax((int)(cell3D.y - maxCheckDist), 0);
+  int zMax = imin((int)(cell3D.z + maxCheckDist), gridResolution - 1);
+  int zMin = imax((int)(cell3D.z - maxCheckDist), 0);
+  for (int z = zMin; z <= zMax; z++) {
+    for (int y = yMin; y <= yMax; y++) {
+      for (int x = xMin; x <= xMax; x++) {
+        int curCell = gridIndex3Dto1D(x, y, z, gridResolution);
+        int startInd = gridCellStartIndices[curCell];
+        int endInd = gridCellEndIndices[curCell];
+        if (startInd < 0) {
+          // -1 startInd means no boids in cell
+          continue;
+        }
+        for (int i = startInd; i <= endInd; i++) {
+          int ind = particleArrayIndices[i];
+          float distance = glm::length(pos[index] - pos[ind]);
+          // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
+          if (distance < rule1Distance) {
+            pCenter += pos[ind];
+            rule1Neighbors += 1;
+          }
+          // Rule 2: boids try to stay a distance d away from each other
+          if (distance < rule2Distance) {
+            pRepell -= pos[ind] - pos[index];
+          }
+          // Rule 3: boids try to match the speed of surrounding boids
+          if (distance < rule3Distance) {
+            pVel += vel1[ind];
+            rule3Neighbors += 1;
+          }
+        }
+      }
+    }
   }
   if (rule1Neighbors > 0) {
     pCenter /= rule1Neighbors;
@@ -514,33 +484,6 @@ __global__ void kernUpdateVelNeighborSearchScattered(
     newVel /= speedRatio;
   }
   vel2[index] = newVel;
-}
-
-__device__ void addNeighborInfluenceCoherent(glm::vec3* pos, glm::vec3* vel,
-  int startInd, int endInd, int iSelf,
-  glm::vec3* pCenter, glm::vec3* pRepell, glm::vec3* pVel,
-  int* rule1Neighbors, int* rule3Neighbors) {
-  if (startInd < 0) {
-    // -1 startInd means no boids in cell
-    return;
-  }
-  for (int i = startInd; i <= endInd; i++) {
-    float distance = glm::length(pos[iSelf] - pos[i]);
-    // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
-    if (distance < rule1Distance) {
-      *pCenter += pos[i];
-      *rule1Neighbors += 1;
-    }
-    // Rule 2: boids try to stay a distance d away from each other
-    if (distance < rule2Distance) {
-      *pRepell -= pos[i] - pos[iSelf];
-    }
-    // Rule 3: boids try to match the speed of surrounding boids
-    if (distance < rule3Distance) {
-      *pVel += vel[i];
-      *rule3Neighbors += 1;
-    }
-  }
 }
 
 __global__ void kernUpdateVelNeighborSearchCoherent(
@@ -572,47 +515,44 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
   int rule3Neighbors = 0;
   glm::vec3 deltaVel(0.f);
 
-  float maxCheckDist = cellWidth / 2;
-  // check current cell
+  float maxCheckDist = imax(imax(rule1Distance, rule2Distance), rule3Distance) * inverseCellWidth;
   glm::vec3 cell3D = (pos[index] - gridMin) * inverseCellWidth;
-  int curCell = gridIndex3Dto1D((int)(cell3D.x), (int)(cell3D.y), (int)(cell3D.z), gridResolution);
-  addNeighborInfluenceCoherent(pos, vel1, gridCellStartIndices[curCell], gridCellEndIndices[curCell],
-    index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
-  // check +x cell
-  if (imin((cell3D.x + maxCheckDist), gridResolution - 1) > (int)cell3D.x) {
-    int checkCell = curCell + 1;
-    addNeighborInfluenceCoherent(pos, vel1, gridCellStartIndices[checkCell], gridCellEndIndices[checkCell],
-      index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
-  }
-  // check -x cell
-  if (imax((cell3D.x - maxCheckDist), 0) < (int)cell3D.x) {
-    int checkCell = curCell - 1;
-    addNeighborInfluenceCoherent(pos, vel1, gridCellStartIndices[checkCell], gridCellEndIndices[checkCell],
-      index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
-  }
-  // check +y cell
-  if (imin((cell3D.y + maxCheckDist), gridResolution - 1) > (int)cell3D.y) {
-    int checkCell = curCell + gridResolution;
-    addNeighborInfluenceCoherent(pos, vel1, gridCellStartIndices[checkCell], gridCellEndIndices[checkCell],
-      index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
-  }
-  // check -y cell
-  if (imax((cell3D.y - maxCheckDist), 0) < (int)cell3D.y) {
-    int checkCell = curCell - gridResolution;
-    addNeighborInfluenceCoherent(pos, vel1, gridCellStartIndices[checkCell], gridCellEndIndices[checkCell],
-      index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
-  }
-  // check +z cell
-  if (imin((cell3D.z + maxCheckDist), gridResolution - 1) > (int)cell3D.z) {
-    int checkCell = curCell + gridResolution * gridResolution;
-    addNeighborInfluenceCoherent(pos, vel1, gridCellStartIndices[checkCell], gridCellEndIndices[checkCell],
-      index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
-  }
-  // check -z cell
-  if (imax((cell3D.z - maxCheckDist), 0) < (int)cell3D.z) {
-    int checkCell = curCell - gridResolution * gridResolution;
-    addNeighborInfluenceCoherent(pos, vel1, gridCellStartIndices[checkCell], gridCellEndIndices[checkCell],
-      index, &pCenter, &pRepell, &pVel, &rule1Neighbors, &rule3Neighbors);
+  // check grid cube that encompasses all of rule interaction sphere
+  int xMax = imin((int)(cell3D.x + maxCheckDist), gridResolution - 1);
+  int xMin = imax((int)(cell3D.x - maxCheckDist), 0);
+  int yMax = imin((int)(cell3D.y + maxCheckDist), gridResolution - 1);
+  int yMin = imax((int)(cell3D.y - maxCheckDist), 0);
+  int zMax = imin((int)(cell3D.z + maxCheckDist), gridResolution - 1);
+  int zMin = imax((int)(cell3D.z - maxCheckDist), 0);
+  for (int z = zMin; z <= zMax; z++) {
+    for (int y = yMin; y <= yMax; y++) {
+      for (int x = xMin; x <= xMax; x++) {
+        int curCell = gridIndex3Dto1D(x, y, z, gridResolution);
+        int startInd = gridCellStartIndices[curCell];
+        int endInd = gridCellEndIndices[curCell];
+        if (startInd < 0) {
+          // -1 startInd means no boids in cell
+          continue;
+        }
+        for (int i = startInd; i <= endInd; i++) {
+          float distance = glm::length(pos[index] - pos[i]);
+          // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
+          if (distance < rule1Distance) {
+            pCenter += pos[i];
+            rule1Neighbors += 1;
+          }
+          // Rule 2: boids try to stay a distance d away from each other
+          if (distance < rule2Distance) {
+            pRepell -= pos[i] - pos[index];
+          }
+          // Rule 3: boids try to match the speed of surrounding boids
+          if (distance < rule3Distance) {
+            pVel += vel1[i];
+            rule3Neighbors += 1;
+          }
+        }
+      }
+    }
   }
   if (rule1Neighbors > 0) {
     pCenter /= rule1Neighbors;
