@@ -308,8 +308,9 @@ __global__ void kernUpdateVelocityBruteForce(int N, glm::vec3 *pos,
   // Compute a new velocity based on pos and vel1
   
     int index = threadIdx.x + (blockIdx.x * blockDim.x);
-    if (index >= N) return;
-
+    if (index >= N) {
+        return;
+    }
     glm::vec3 new_velocity = vel1[index] + computeVelocityChange(N, index, pos, vel1);
     // Clamp the speed
     float speed = glm::length(new_velocity);
