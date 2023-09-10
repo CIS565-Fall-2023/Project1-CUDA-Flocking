@@ -251,9 +251,9 @@ void Boids::copyBoidsToVBO(float *vbodptr_positions, float *vbodptr_velocities) 
 * in the `pos` and `vel` arrays.
 */
 __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *pos, const glm::vec3 *vel) {
-	glm::vec3 perceived_center(0.f);
-	glm::vec3 c(0.f);
-	glm::vec3 perceived_velocity(0.f);
+	glm::vec3 perceived_center(0.0f);
+	glm::vec3 c(0.0f);
+	glm::vec3 perceived_velocity(0.0f);
 
 	int numberOfNeigbors_center = 0;
 	int numberOfNeighbors_vel = 0;
@@ -266,7 +266,7 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
 			// Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
 			if (distance < rule1Distance) {
 				perceived_center += pos[i];
-				numberOfNeigbors_center += 1;
+				numberOfNeigbors_center++;
 			}
 
 			// Rule 2: boids try to stay a distance d away from each other
@@ -277,17 +277,17 @@ __device__ glm::vec3 computeVelocityChange(int N, int iSelf, const glm::vec3 *po
 			// Rule 3: boids try to match the speed of surrounding boids
 			if (distance < rule3Distance) {
 				perceived_velocity += vel[i];
-				numberOfNeighbors_vel += 1;
+				numberOfNeighbors_vel++;
 			}
 		}
 	}
 
 	if (numberOfNeigbors_center > 0) {
-		perceived_center /= numberOfNeigbors_center;
+		perceived_center /= float(numberOfNeigbors_center);
 	}
 
 	if (numberOfNeighbors_vel > 0) {
-		perceived_velocity /= numberOfNeighbors_vel;
+		perceived_velocity /= float(numberOfNeighbors_vel);
 	}
 
 	return (perceived_center - pos[iSelf]) * rule1Scale + c * rule2Scale + perceived_velocity * rule3Scale;
@@ -474,8 +474,8 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 		}
 	}
 
-	if (rule1Count) perceived_center /= rule1Count;
-	if (rule3Count) perceived_velocity /= rule3Count;
+	if (rule1Count) perceived_center /= float(rule1Count);
+	if (rule3Count) perceived_velocity /= float(rule3Count);
 
 	glm::vec3 velocityChange =
 		(perceived_center - pos[index]) * rule1Scale +
@@ -568,8 +568,8 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 		}
 	}
 
-	if (rule1Count) perceived_center /= rule1Count;
-	if (rule3Count) perceived_velocity /= rule3Count;
+	if (rule1Count) perceived_center /= float(rule1Count);
+	if (rule3Count) perceived_velocity /= float(rule3Count);
 
 	glm::vec3 velocityChange =
 		(perceived_center - pos[index]) * rule1Scale +
@@ -845,8 +845,8 @@ void Boids::unitTest() {
 	  assert(gridIndices[i] == expectedCellIndex); // Check computed grid index
 
 	  std::cout << "  Grid Index: " << gridIndices[i];
-	  std::cout << "  Array Index: " << arrayIndices[i] << std::endl;
-	  
+	  std::cout << "  Array Index: " << arrayIndices[i];
+	  std::cout << "  Pos: (" << pos[i].x << ", " << pos[i].y << ", " << pos[i].z << ")" << std::endl;
   }
 
   int* dev_startIndices;
@@ -878,10 +878,31 @@ void Boids::unitTest() {
 	  std::cout << " end: " << endIndices[i] << std::endl;
   }
 
+  // test rearrange index for part 2.3
+  glm::vec3* dev_rearranged_pos;
+
+  cudaMalloc((void**)&dev_rearranged_pos, N * sizeof(glm::vec3));
+  checkCUDAErrorWithLine("cudaMalloc dev_rearranged_pos failed!");
+
+  kernRearrangeIndex << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_arrayIndices, dev_pos, dev_rearranged_pos);
+
+  std::unique_ptr<glm::vec3[]> rearranged_pos{ new glm::vec3[N] };
+  cudaMemcpy(rearranged_pos.get(), dev_rearranged_pos, sizeof(glm::vec3) * N, cudaMemcpyDeviceToHost);
+
+  std::cout << "Test kernRearrangeIndex: " << std::endl;
+  for (int i = 0; i < N; i++) {
+	  int index = arrayIndices[i];
+	  std::cout << "  Original Pos: (" << pos[index].x << ", " << pos[index].y << ", " << pos[index].z << ")";
+	  std::cout << "  Rearranged Pos: (" << rearranged_pos[i].x << ", " << rearranged_pos[i].y << ", " << rearranged_pos[i].z << ")" << std::endl;
+  }
+
+
   cudaFree(dev_pos);
   cudaFree(dev_arrayIndices);
   cudaFree(dev_gridIndices);
   cudaFree(dev_startIndices);
   cudaFree(dev_endIndices);
+  cudaFree(dev_rearranged_pos);
+
   return;
 }
