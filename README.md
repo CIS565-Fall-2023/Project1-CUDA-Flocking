@@ -71,7 +71,7 @@ Project 1 - Flocking**
 
 <img src="images/perf_blk_scatter.png" style="zoom:67%;" />
 
-<img src=images/perf_blk_coherent.png" style="zoom:67%;" />
+<img src="images/perf_blk_coherent.png" style="zoom:67%;" />
 
 <img src="images/perf_blk_grdlp.png" style="zoom: 67%;" />
 
