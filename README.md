@@ -13,6 +13,10 @@ anything here that you don't want to share with the world.)
 
 ## Performance Analysis
 
+![](images/boid_count.png)
+
+![](images/block_size.png)
+
 Note: Since I use the title bar to observe the FPS, I am not able to get the accurate data for visualized ones (FPS is fixed there).
 
 Q: For each implementation, how does changing the number of boids affect performance? Why do you think this is?
