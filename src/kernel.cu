@@ -785,22 +785,22 @@ void Boids::unitTest() {
 
   // test kernComputeIndices
   int gridResolution = 10;
-  glm::vec3 grid_min(-50);
+  glm::vec3 grid_min(0);
   float inverse_cellWidth = 1.0f / 5.0f;
 
   std::unique_ptr<glm::vec3[]>pos{ new glm::vec3[N] };
 
   // Manually set test points
-  pos[0] = glm::vec3(-48, -48, -48);  // Within the first cell (grid index 0)
-  pos[1] = glm::vec3(-45, -45, -45);  // Also within the first cell (grid index 0)
-  pos[2] = glm::vec3(-42, -42, -42);  // Also within the first cell (grid index 0)
-  pos[3] = glm::vec3(-38, -38, -38);  // Within the second cell (grid index 1)
-  pos[4] = glm::vec3(-28, -28, -28);  // Grid index 2
-  pos[5] = glm::vec3(-18, -18, -18);  // Grid index 3
-  pos[6] = glm::vec3(-8, -8, -8);   // Grid index 4
-  pos[7] = glm::vec3(2, 2, 2);    // Grid index 5
-  pos[8] = glm::vec3(12, 12, 12);   // Grid index 6
-  pos[9] = glm::vec3(22, 22, 22);   // Grid index 7
+  pos[0] = glm::vec3(48, 0, 0);  // Within the first cell (grid index 0)
+  pos[1] = glm::vec3(45, 0, 0);  // Also within the first cell (grid index 0)
+  pos[2] = glm::vec3(42, 0, 0);  // Also within the first cell (grid index 0)
+  pos[3] = glm::vec3(35, 0, 0);  // Within the second cell (grid index 1)
+  pos[4] = glm::vec3(25, 0, 0);  // Grid index 2
+  pos[5] = glm::vec3(15, 0, 0);  // Grid index 3
+  pos[6] = glm::vec3(5, 0, 0);   // Grid index 4
+  pos[7] = glm::vec3(5, 0, 0);    // Grid index 5
+  pos[8] = glm::vec3(15, 0, 0);   // Grid index 6
+  pos[9] = glm::vec3(25, 0, 0);   // Grid index 7
 
   glm::vec3* dev_pos;
   int* dev_arrayIndices;
