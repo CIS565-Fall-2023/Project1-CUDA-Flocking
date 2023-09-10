@@ -14,8 +14,8 @@
 
 // LOOK-2.1 LOOK-2.3 - toggles for UNIFORM_GRID and COHERENT_GRID
 #define VISUALIZE 1
-#define UNIFORM_GRID 0
-#define COHERENT_GRID 0
+#define UNIFORM_GRID 1
+#define COHERENT_GRID 1
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
 const int N_FOR_VIS = 5000;
@@ -183,7 +183,7 @@ void initShaders(GLuint * program) {
   //====================================
   // Main loop
   //====================================
-  void runCUDA() {
+  void runCUDA(cudaEvent_t& start, cudaEvent_t& stop, float* milliseconds) {
     // Map OpenGL buffer object for writing from CUDA on a single GPU
     // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not
     // use this buffer
@@ -196,6 +196,7 @@ void initShaders(GLuint * program) {
     cudaGLMapBufferObject((void**)&dptrVertVelocities, boidVBO_velocities);
 
     // execute the kernel
+    cudaEventRecord(start);
     #if UNIFORM_GRID && COHERENT_GRID
     Boids::stepSimulationCoherentGrid(DT);
     #elif UNIFORM_GRID
@@ -203,6 +204,7 @@ void initShaders(GLuint * program) {
     #else
     Boids::stepSimulationNaive(DT);
     #endif
+    cudaEventRecord(stop);
 
     #if VISUALIZE
     Boids::copyBoidsToVBO(dptrVertPositions, dptrVertVelocities);
@@ -210,12 +212,23 @@ void initShaders(GLuint * program) {
     // unmap buffer object
     cudaGLUnmapBufferObject(boidVBO_positions);
     cudaGLUnmapBufferObject(boidVBO_velocities);
+
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(milliseconds, start, stop);
   }
 
   void mainLoop() {
     double fps = 0;
     double timebase = 0;
     int frame = 0;
+    cudaEvent_t start, stop;
+    int eventCount = 0;
+    float milliseconds = 0;
+    float totalMs = 0;
+    float avgMs = 0;
+
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
     Boids::unitTest(); // LOOK-1.2 We run some basic example code to make sure
                        // your CUDA development setup is ready to go.
@@ -232,13 +245,23 @@ void initShaders(GLuint * program) {
         frame = 0;
       }
 
-      runCUDA();
+      runCUDA(start, stop, &milliseconds);
+
+      totalMs += milliseconds;
+      eventCount++;
+      if (eventCount > 300) {
+        avgMs = totalMs / eventCount;
+        totalMs = 0;
+        eventCount = 0;
+      }
 
       std::ostringstream ss;
       ss << "[";
       ss.precision(1);
-      ss << std::fixed << fps;
-      ss << " fps] " << deviceName;
+      ss << std::fixed << fps << " fps] ";
+      ss << "[";
+      ss.precision(10);
+      ss << std::fixed << avgMs << " ms] " << deviceName;
       glfwSetWindowTitle(window, ss.str().c_str());
 
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
