@@ -7,6 +7,7 @@ Project 1 - Flocking**
 * Tested on: Windows 11 pro, 12th Gen Intel(R) Core(TM) i7-12700K 3.61 GHz 32.0 GB, NVIDIA GeForce RTX 3070 Ti (personal computer)
 
 ### ScreenShots
+(Please allow a moment for the gif to load.)
 
 #Boids = 10000
 ![](images/Screenshots/Boids.gif)
