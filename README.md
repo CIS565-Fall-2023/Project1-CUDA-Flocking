@@ -14,12 +14,15 @@ Screenshots
 Figures
 
 ![](images/boidnum.png)
+
 Figure1: FPS changes as increasing number of boids for 3 methods(without visualization)
 
 ![](images/boidnumVIS.png)
+
 Figure2: FPS changes as increasing number of boids for 3 methods(with visualization)
 
 ![](images/blocksize.png)
+
 Figure3: FPS changes as increasing blocksize for 3 methods(without visualization)
 
 ### Questions
