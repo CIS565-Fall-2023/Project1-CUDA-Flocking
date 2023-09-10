@@ -356,9 +356,6 @@ __global__ void kernComputeIndices(int N, int gridResolution,
   indices[index]=index;
   glm::vec3 thisPos=pos[index];
   glm::vec3 gridnum =(thisPos-gridMin)*inverseCellWidth;
-  int x = (int)gridnum.x;
-  int y = (int)gridnum.y;
-  int z = (int)gridnum.z;
   gridIndices[index]=gridIndex3Dto1D((int)gridnum.x,(int)gridnum.y,(int)gridnum.z,gridResolution);
   return;
 }
@@ -386,6 +383,10 @@ __global__ void kernIdentifyCellStartEnd(int N, int *particleGridIndices,
     gridCellStartIndices[particleGridIndices[index]]=0;
   }else if(index==N-1){
     gridCellEndIndices[particleGridIndices[index]]=N-1;
+    if(particleGridIndices[index]!=particleGridIndices[index-1]){
+      gridCellStartIndices[particleGridIndices[index]]=index;
+      gridCellEndIndices[particleGridIndices[index-1]]=index-1;
+    }
   }else if(particleGridIndices[index]!=particleGridIndices[index-1]){
     gridCellStartIndices[particleGridIndices[index]]=index;
     gridCellEndIndices[particleGridIndices[index-1]]=index-1;
@@ -685,6 +686,12 @@ void Boids::endSimulation() {
   cudaFree(dev_pos);
 
   // TODO-2.1 TODO-2.3 - Free any additional buffers here.
+  cudaFree(dev_particleArrayIndices);
+  cudaFree(dev_particleGridIndices);
+  cudaFree(dev_posR);
+  cudaFree(dev_velR);
+  cudaFree(dev_gridCellStartIndices);
+  cudaFree(dev_gridCellEndIndices);
 }
 
 void Boids::unitTest() {
