@@ -15,11 +15,12 @@
 // LOOK-2.1 LOOK-2.3 - toggles for UNIFORM_GRID and COHERENT_GRID
 #define VISUALIZE 1
 #define UNIFORM_GRID 1
-#define COHERENT_GRID 0
+#define COHERENT_GRID 1
+#define GRIDLOOP_OPT 1 //Grid looping optimization
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
-const int N_FOR_VIS = 10000;
-const float DT = 0.2f;
+const int N_FOR_VIS = 100000;
+const float DT = 0.05f;
 
 /**
 * C main function.
@@ -197,7 +198,11 @@ void initShaders(GLuint * program) {
 
     // execute the kernel
     #if UNIFORM_GRID && COHERENT_GRID
+    #if GRIDLOOP_OPT
+    Boids::stepSimulationCoherentGridLoopingOptimization(DT);
+    #else
     Boids::stepSimulationCoherentGrid(DT);
+    #endif
     #elif UNIFORM_GRID
     Boids::stepSimulationScatteredGrid(DT);
     #else
