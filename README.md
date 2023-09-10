@@ -22,7 +22,7 @@ anything here that you don't want to share with the world.)
 For each implementation, how does changing the number of boids affect performance? Why do you think this is?
 here are the diagram for the number of bids that affect the performance:
 
-
+![Unlock FPS](images/hw2.png)
 
 
 
@@ -32,8 +32,7 @@ here are the diagram for the number of bids that affect the performance:
 
 For each implementation, how does changing the block count and block size affect performance? Why do you think this is?
 
-
-
+![Unlock FPS](images/hw3.png)
 
 
 
