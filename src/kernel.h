@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+
 #include <stdio.h>
 #include <thrust/sort.h>
 #include <thrust/execution_policy.h>
