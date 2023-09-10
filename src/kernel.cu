@@ -400,8 +400,10 @@ void Boids::stepSimulationNaive(float dt) {
   // TODO-1.2 ping-pong the velocity buffers
   dim3 fullBlocksPerGrid((numObjects + blockSize - 1) / blockSize);
   kernUpdateVelocityBruteForce<<<fullBlocksPerGrid, threadsPerBlock>>>(numObjects, dev_pos, dev_vel1, dev_vel2);
+  checkCUDAErrorWithLine("kernel update velocity bruteforce failed");
   std::swap(dev_vel1, dev_vel2);
   kernUpdatePos<<<fullBlocksPerGrid, threadsPerBlock>>>(numObjects, dt, dev_pos, dev_vel1);
+  checkCUDAErrorWithLine("kernel update pos failed");
 }
 
 void Boids::stepSimulationScatteredGrid(float dt) {
