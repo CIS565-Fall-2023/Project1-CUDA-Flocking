@@ -403,44 +403,43 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 	// - Identify the grid cell that this particle is in
 	// - Identify which cells may contain neighbors. This isn't always 8.
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
-	if (index > N)
+	if (index >= N)
 		return;
 	int iSelf = particleArrayIndices[index];
-	glm::vec3 cell_idx = (pos[iSelf] - gridMin) * inverseCellWidth;
-	glm::ivec3 cell_idx_floor = glm::clamp(cell_idx - glm::vec3(0.5), glm::vec3(0), glm::vec3(gridResolution));
+	const glm::vec3 cell_idx = (pos[iSelf] - gridMin) * inverseCellWidth;
+	const glm::ivec3 cell_idx_begin = glm::clamp(cell_idx - glm::vec3(0.5), glm::vec3(0), glm::vec3(gridResolution));
+	const glm::ivec3 cell_idx_end = cell_idx_begin + glm::ivec3(2);
 
-	glm::vec3 my_pos = pos[iSelf];
+	const glm::vec3 my_pos = pos[iSelf];
 	glm::vec3 perceived_center{ 0 };
 	glm::vec3 c{ 0 };
 	glm::vec3 perceived_velocity{ 0 };
 	int rule1_neighbor_count = 0;
 	int rule3_neighbor_count = 0;
-	for (int x = cell_idx_floor.x; x < cell_idx_floor.x + 2; x++)
+	for (int x = cell_idx_begin.x; x < cell_idx_end.x; x++)
 	{
-		for (int y = cell_idx_floor.y; y < cell_idx_floor.y + 2; y++)
+		for (int y = cell_idx_begin.y; y < cell_idx_end.y; y++)
 		{
-			for (int z = cell_idx_floor.z; z < cell_idx_floor.z + 2; z++)
+			for (int z = cell_idx_begin.z; z < cell_idx_end.z; z++)
 			{
-				// - For each cell, read the start/end indices in the boid pointer array.
-				int curr_grid_index = gridIndex3Dto1D(x, y, z, gridResolution);
-				int start_index = gridCellStartIndices[curr_grid_index];
+				const int curr_grid_index = gridIndex3Dto1D(x, y, z, gridResolution);
+				const int start_index = gridCellStartIndices[curr_grid_index];
 				if (start_index == -1) continue;
-				int end_index = gridCellEndIndices[curr_grid_index];
+				const int end_index = gridCellEndIndices[curr_grid_index];
 				for (int i = start_index; i <= end_index; i++)
 				{
 					const int curr_real_id = particleArrayIndices[i];
-					const glm::vec3 boid_pos = pos[curr_real_id];
 					if (curr_real_id == iSelf) continue;
-					float dist = glm::distance(boid_pos, my_pos);
-					// - Access each boid in the cell and compute velocity change from
-					//   the boids rules, if this boid is within the neighborhood distance.
-					if (dist < rule1Distance) {
+					const glm::vec3 boid_pos = pos[curr_real_id];
+					const glm::vec3 vec_boid = boid_pos - my_pos;
+					float dist = glm::dot(vec_boid, vec_boid);
+					if (dist < rule1Distance * rule1Distance) {
 						rule1_neighbor_count++;
 						perceived_center += boid_pos;
 					}
-					if (dist < rule2Distance)
-						c -= (boid_pos - my_pos);
-					if (dist < rule3Distance) {
+					if (dist < rule2Distance * rule2Distance)
+						c -= vec_boid;
+					if (dist < rule3Distance * rule3Distance) {
 						rule3_neighbor_count++;
 						perceived_velocity += vel1[curr_real_id];
 					}
@@ -459,9 +458,9 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 		res += perceived_velocity * rule3Scale;
 	}
 	glm::vec3 new_vel = vel1[iSelf] + res;
-	// - Clamp the speed change before putting the new speed in vel2
-	if (glm::length(new_vel) > maxSpeed) {
-		new_vel = glm::normalize(new_vel) * maxSpeed;
+	float speed2 = glm::dot(new_vel, new_vel);
+	if (speed2 > maxSpeed * maxSpeed) {
+		new_vel = new_vel * glm::inversesqrt(speed2) * maxSpeed;
 	}
 	vel2[iSelf] = new_vel;
 }
@@ -484,43 +483,44 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 	//   the boids rules, if this boid is within the neighborhood distance.
 	// - Clamp the speed change before putting the new speed in vel2
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
-	if (index > N)
+	if (index >= N)
 		return;
 	int iSelf = index;
-	glm::vec3 cell_idx = (pos[iSelf] - gridMin) * inverseCellWidth;
-	glm::ivec3 cell_idx_floor = glm::clamp(cell_idx - glm::vec3(0.5), glm::vec3(0), glm::vec3(gridResolution));
+	const glm::vec3 cell_idx = (pos[iSelf] - gridMin) * inverseCellWidth;
+	const glm::ivec3 cell_idx_begin = glm::clamp(cell_idx - glm::vec3(0.5), glm::vec3(0), glm::vec3(gridResolution));
+	const glm::ivec3 cell_idx_end = cell_idx_begin + glm::ivec3(2);
 
-	glm::vec3 my_pos = pos[iSelf];
+	const glm::vec3 my_pos = pos[iSelf];
 	glm::vec3 perceived_center{ 0 };
 	glm::vec3 c{ 0 };
 	glm::vec3 perceived_velocity{ 0 };
 	int rule1_neighbor_count = 0;
 	int rule3_neighbor_count = 0;
-	for (int x = cell_idx_floor.x; x < cell_idx_floor.x + 2; x++)
+	for (int x = cell_idx_begin.x; x < cell_idx_end.x; x++)
 	{
-		for (int y = cell_idx_floor.y; y < cell_idx_floor.y + 2; y++)
+		for (int y = cell_idx_begin.y; y < cell_idx_end.y; y++)
 		{
-			for (int z = cell_idx_floor.z; z < cell_idx_floor.z + 2; z++)
+			for (int z = cell_idx_begin.z; z < cell_idx_end.z; z++)
 			{
-				int curr_grid_index = gridIndex3Dto1D(x, y, z, gridResolution);
-				int start_index = gridCellStartIndices[curr_grid_index];
+				const int curr_grid_index = gridIndex3Dto1D(x, y, z, gridResolution);
+				const int start_index = gridCellStartIndices[curr_grid_index];
 				if (start_index == -1) continue;
-				int end_index = gridCellEndIndices[curr_grid_index];
+				const int end_index = gridCellEndIndices[curr_grid_index];
 				for (int i = start_index; i <= end_index; i++)
 				{
-					const int curr_real_id = i;
-					const glm::vec3 boid_pos = pos[curr_real_id];
-					if (curr_real_id == iSelf) continue;
-					float dist = glm::distance(boid_pos, my_pos);
-					if (dist < rule1Distance) {
+					if (i == iSelf) continue;
+					const glm::vec3 boid_pos = pos[i];
+					const glm::vec3 vec_boid = boid_pos - my_pos;
+					float dist = glm::dot(vec_boid, vec_boid);
+					if (dist < rule1Distance * rule1Distance) {
 						rule1_neighbor_count++;
 						perceived_center += boid_pos;
 					}
-					if (dist < rule2Distance)
-						c -= (boid_pos - my_pos);
-					if (dist < rule3Distance) {
+					if (dist < rule2Distance * rule2Distance)
+						c -= vec_boid;
+					if (dist < rule3Distance * rule3Distance) {
 						rule3_neighbor_count++;
-						perceived_velocity += vel1[curr_real_id];
+						perceived_velocity += vel1[i];
 					}
 				}
 			}
@@ -537,8 +537,9 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 		res += perceived_velocity * rule3Scale;
 	}
 	glm::vec3 new_vel = vel1[iSelf] + res;
-	if (glm::length(new_vel) > maxSpeed) {
-		new_vel = glm::normalize(new_vel) * maxSpeed;
+	float speed2 = glm::dot(new_vel, new_vel);
+	if (speed2 > maxSpeed * maxSpeed) {
+		new_vel = new_vel * glm::inversesqrt(speed2) * maxSpeed;
 	}
 	vel2[iSelf] = new_vel;
 }
