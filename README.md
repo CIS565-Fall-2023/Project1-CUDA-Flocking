@@ -23,11 +23,11 @@ Project 1 - Flocking**
 
 ### Showcase
 
-![](images\boids-0.gif)
+![](images/boids-0.gif)
 
-![](images\boids-2.gif)
+![](images/boids-2.gif)
 
-![](images\boids-1.gif)
+![](images/boids-1.gif)
 
 ### Performance Analysis
 
@@ -44,7 +44,7 @@ Project 1 - Flocking**
 | 500000     | 1.8                  | 146.8                   | 752.8                  | 670.4                                                  |
 | 1000000    | 0.5                  | 46.1                    | 381.6                  | 406.5                                                  |
 
-![](images\perf_1x_dist.png)
+![](images/perf_1x_dist.png)
 
 #### 2: Performance with different # of boids (Gridsize==2*MaxRuleDistance, No visual)
 
@@ -59,21 +59,21 @@ Project 1 - Flocking**
 | 500000     | 1.5                  | 82.7                    | 586.8                  | 534.5                                                  |
 | 1000000    | 0.4                  | 22.3                    | 232.1                  | 193.5                                                  |
 
-![](images\pref_2x_dist.png)
+![](images/pref_2x_dist.png)
 
 #### 3: Performance with and without visualization (27 neighboring grids, coherent grid)
 
-![](E:\Code\Project1-CUDA-Flocking\images\perf_vis.png)
+![](images/perf_vis.png)
 
 #### 4: Performance with different blocksize (# of boids=100000)
 
-<img src="E:\Code\Project1-CUDA-Flocking\images\perf_blk_brute.png" style="zoom:67%;" />
+<img src="images/perf_blk_brute.png" style="zoom:67%;" />
 
-<img src="E:\Code\Project1-CUDA-Flocking\images\perf_blk_scatter.png" style="zoom:67%;" />
+<img src="images/perf_blk_scatter.png" style="zoom:67%;" />
 
-<img src="E:\Code\Project1-CUDA-Flocking\images\perf_blk_coherent.png" style="zoom:67%;" />
+<img src=images/perf_blk_coherent.png" style="zoom:67%;" />
 
-<img src="E:\Code\Project1-CUDA-Flocking\images\perf_blk_grdlp.png" style="zoom: 67%;" />
+<img src="images/perf_blk_grdlp.png" style="zoom: 67%;" />
 
 #### Answer to Questions:
 
@@ -97,6 +97,6 @@ The improvement with coherent grid was great. This improvement is understandable
 **Why or why not? Be careful: it is insufficient (and possibly incorrect) to say**
 **that 27-cell is slower simply because there are more cells to check!**
 
-![](E:\Code\Project1-CUDA-Flocking\images\perf_diff_gridsz.png)
+![](images/perf_diff_gridsz.png)
 
 It did affect performance. Generally performance will be improved. Because when cell width is the twice of the rule distance, there will be some boids that are not actually in the rule distance in the neighbouring 8 cells. But when cell width is just the rule distance, although numbers of cells in the loop will increase, number of boids that needs to be checked will actually decrease. And the denser the simulation field is, the more will this be improved.
