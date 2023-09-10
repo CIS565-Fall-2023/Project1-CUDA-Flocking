@@ -28,6 +28,62 @@ Project 1 - Flocking**
 - Framerate change with increasing block size
 ![](images/increasing_gridSize.png)
 
+#### Analysis Methods
+
+- `cudaEvent_t` is used to record the performance of each implementation under different cases.
+
+```cpp
+runCuda
+{
+
+    ... // before kernel
+
+    #if CUDA_PROFILING
+    cudaEventRecord(start);
+    #endif
+
+    // execute the kernel
+    #if UNIFORM_GRID && COHERENT_GRID
+    Boids::stepSimulationCoherentGrid(DT);
+    #elif UNIFORM_GRID
+    Boids::stepSimulationScatteredGrid(DT);
+    #else
+    Boids::stepSimulationNaive(DT);
+    #endif
+
+    #if CUDA_PROFILING
+        cudaEventRecord(stop);
+        cudaEventSynchronize(stop);
+        float milliseconds = 0;
+        cudaEventElapsedTime(&milliseconds, start, stop);
+        //std::cout << milliseconds << std::endl;
+        elapsed_frame++;
+        elapsed_time += milliseconds;
+    #endif
+    ... // after kernel
+}
+
+mainLoop
+{
+  while (...){
+    ... 
+  } // after quitting mainLoop
+  #if CUDA_PROFILING
+      float average_frame_time = std::max(elapsed_time / elapsed_frame, FLT_EPSILON);
+      std::cout 
+        << "[Stat] average_frame_time: " 
+        << average_frame_time << " ms   average FPS: " 
+        << 1000. / average_frame_time << "\n";
+      cudaEventDestroy(start);
+      cudaEventDestroy(stop);
+  #endif
+}
+```
+
+- To enable tight profiling, enable `CUDA_PROFILING` macro. After quitting the simulation, the average FPS should be printed to the standard output.
+
+![](images/profiling.png)
+
 #### Questions
 
 * For each implementation, how does changing the number of boids affect performance? Why do you think this is?
@@ -41,9 +97,3 @@ Project 1 - Flocking**
 * Did changing cell width and checking 27 vs 8 neighboring cells affect performance? Why or why not? Be careful: it is insufficient (and possibly incorrect) to say that 27-cell is slower simply because there are more cells to check!
   * Yes. According to the stats, 27 neighboring slows down performance mainly at a middle amount of boids. 27-cell is slower mainly because there are a lot of waste spent on checking irrelevant cells. There are at least 19 cells we can ensure that no adjacent boids are in.
   ![](images/27vs8_no_visual.png)
-
-
-## Part 4: Write-up
-
-1. Take a screenshot of the boids **and** use a gif tool like [licecap](http://www.cockos.com/licecap/) to record an animations of the boids with a fixed camera. Put this at the top of your README.md. Take a look at [How to make an attractive
-GitHub repo](https://github.com/pjcozzi/Articles/blob/master/CIS565/GitHubRepo/README.md).

@@ -16,7 +16,7 @@
 #define VISUALIZE 1
 #define UNIFORM_GRID 1
 #define COHERENT_GRID 1
-#define CUDA_PROFILING 0 /* No visulization better be guaranteed. Else the fps will be limited by the fps of screen */
+#define CUDA_PROFILING 1 /* No visulization better be guaranteed. Else the fps will be limited by the fps of screen */
 
 #if CUDA_PROFILING
 cudaEvent_t start;
@@ -25,7 +25,7 @@ float elapsed_time = 0.0f;
 int elapsed_frame = 0;
 #endif
 // LOOK-1.2 - change this to adjust particle count in the simulation
-const int N_FOR_VIS = 500000;
+const int N_FOR_VIS = 5000;
 const float DT = 0.2f;
 
 /**
