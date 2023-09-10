@@ -25,7 +25,7 @@ float elapsed_time = 0.0f;
 int elapsed_frame = 0;
 #endif
 // LOOK-1.2 - change this to adjust particle count in the simulation
-const int N_FOR_VIS = 20000000;
+const int N_FOR_VIS = 500000;
 const float DT = 0.2f;
 
 /**

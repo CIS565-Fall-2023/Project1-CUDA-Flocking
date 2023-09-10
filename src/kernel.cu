@@ -55,7 +55,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 #define maxSpeed 1.0f
 
 /*! Size of the starting area in simulation space. */
-#define scene_scale 1600.0f
+#define scene_scale 200.0f
 
 #define USE_27_NEIGHBOR 0 /* Use 27 neighbors or 8 neighbors */
 

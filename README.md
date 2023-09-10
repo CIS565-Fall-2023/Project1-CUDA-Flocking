@@ -12,10 +12,10 @@ Project 1 - Flocking**
 ![](images/banner.gif)
 
 * `N_FOR_VIS = 500,000; scene_scale=200.0f`
-![](images/banner3.gif)
+![](images/banner2.gif)
 
 * `N_FOR_VIS = 2,000,000; scene_scale=600.0f`
-![](images/banner2.gif)
+![](images/banner3.gif)
 
 
 ### Performance Analysis
