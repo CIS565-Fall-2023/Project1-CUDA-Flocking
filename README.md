@@ -17,7 +17,7 @@ Figures
 
 Figure1: FPS changes as increasing number of boids for 3 methods(without visualization)
 
-![](images/boidnumVIS.png)
+![](images/boidnumvis.png)
 
 Figure2: FPS changes as increasing number of boids for 3 methods(with visualization)
 
