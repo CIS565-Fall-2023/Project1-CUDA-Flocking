@@ -345,7 +345,7 @@ __global__ void kernUpdatePos(int N, float dt, glm::vec3 *pos, glm::vec3 *vel) {
 //          for(x)
 //            for(y)
 //             for(z)? Or some other order?
-__device__ int gridIndex3Dto1D(int x, int y, int z, int gridResolution) {
+__host__ __device__ int gridIndex3Dto1D(int x, int y, int z, int gridResolution) {
 	return x + y * gridResolution + z * gridResolution * gridResolution;
 }
 
@@ -720,8 +720,11 @@ void Boids::endSimulation() {
 
 void Boids::unitTest() {
   // LOOK-1.2 Feel free to write additional tests here.
+	int N = 10;
+	dim3 fullBlocksPerGrid((N + blockSize - 1) / blockSize);
 
   // test unstable sort
+	/**
   int *dev_intKeys;
   int *dev_intValues;
   int N = 10;
@@ -775,39 +778,109 @@ void Boids::unitTest() {
 	std::cout << " value: " << intValues[i] << std::endl;
   }
 
+  // cleanup
+  cudaFree(dev_intKeys);
+  cudaFree(dev_intValues);
+  **/
+
+  // test kernComputeIndices
+  int gridResolution = 10;
+  glm::vec3 grid_min(-50);
+  float inverse_cellWidth = 1.0f / 5.0f;
+
+  std::unique_ptr<glm::vec3[]>pos{ new glm::vec3[N] };
+
+  // Manually set test points
+  pos[0] = glm::vec3(-48, -48, -48);  // Within the first cell (grid index 0)
+  pos[1] = glm::vec3(-45, -45, -45);  // Also within the first cell (grid index 0)
+  pos[2] = glm::vec3(-42, -42, -42);  // Also within the first cell (grid index 0)
+  pos[3] = glm::vec3(-38, -38, -38);  // Within the second cell (grid index 1)
+  pos[4] = glm::vec3(-28, -28, -28);  // Grid index 2
+  pos[5] = glm::vec3(-18, -18, -18);  // Grid index 3
+  pos[6] = glm::vec3(-8, -8, -8);   // Grid index 4
+  pos[7] = glm::vec3(2, 2, 2);    // Grid index 5
+  pos[8] = glm::vec3(12, 12, 12);   // Grid index 6
+  pos[9] = glm::vec3(22, 22, 22);   // Grid index 7
+
+  glm::vec3* dev_pos;
+  int* dev_arrayIndices;
+  int* dev_gridIndices;
+
+  cudaMalloc((void**)&dev_pos, N * sizeof(glm::vec3));
+  checkCUDAErrorWithLine("cudaMalloc dev_pos failed!");
+
+  cudaMalloc((void**)&dev_arrayIndices, N * sizeof(int));
+  checkCUDAErrorWithLine("cudaMalloc dev_arrayIndices failed!");
+
+  cudaMalloc((void**)&dev_gridIndices, N * sizeof(int));
+  checkCUDAErrorWithLine("cudaMalloc dev_gridIndices failed!");
+
+  // copy dat to device
+  cudaMemcpy(dev_pos, pos.get(), N * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+
+  // Invoke kernel
+  kernComputeIndices << < fullBlocksPerGrid, blockSize >> > (
+	  N, gridResolution, grid_min, inverse_cellWidth, dev_pos, dev_arrayIndices, dev_gridIndices);
+
+  // Wrap device vectors in thrust iterators for use with thrust.
+  thrust::device_ptr<int> dev_thrust_keys(dev_gridIndices);
+  thrust::device_ptr<int> dev_thrust_values(dev_arrayIndices);
+  // LOOK-2.1 Example for using thrust::sort_by_key
+  thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + N, dev_thrust_values);
+
+  // Copy results back to host
+  std::unique_ptr<int[]>arrayIndices{ new int[N] };
+  std::unique_ptr<int[]>gridIndices{ new int[N] };
+
+  cudaMemcpy(arrayIndices.get(), dev_arrayIndices, N * sizeof(int), cudaMemcpyDeviceToHost);
+  cudaMemcpy(gridIndices.get(), dev_gridIndices, N * sizeof(int), cudaMemcpyDeviceToHost);
+
+  // Validation
+  std::cout << "Test kernComputeIndices: " << std::endl;
+  for (int i = 0; i < N; i++) {
+	  assert(arrayIndices[i] == i); // Each boid's index should be its original position in the array
+
+	  glm::ivec3 expectedCell = glm::ivec3((pos[i] - grid_min) * inverse_cellWidth);
+	  int expectedCellIndex = gridIndex3Dto1D(expectedCell.x, expectedCell.y, expectedCell.z, gridResolution);
+	  assert(gridIndices[i] == expectedCellIndex); // Check computed grid index
+
+	  std::cout << "  Grid Index: " << gridIndices[i];
+	  std::cout << "  Array Index: " << arrayIndices[i] << std::endl;
+	  
+  }
+
   int* dev_startIndices;
   int* dev_endIndices;
-  int gridCellSize = 7;
 
-  cudaMalloc((void**)&dev_startIndices, gridCellSize * sizeof(int));
+  cudaMalloc((void**)&dev_startIndices, N * sizeof(int));
   checkCUDAErrorWithLine("cudaMalloc dev_startIndices failed!");
 
-  cudaMalloc((void**)&dev_endIndices, gridCellSize * sizeof(int));
+  cudaMalloc((void**)&dev_endIndices, N * sizeof(int));
   checkCUDAErrorWithLine("cudaMalloc dev_endIndices failed!");
 
   kernResetIntBuffer << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_startIndices, -1);
   kernResetIntBuffer << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_endIndices, -1);
 
-  kernIdentifyCellStartEnd << <fullBlocksPerGrid, blockSize >> > (N, dev_intKeys,
+  kernIdentifyCellStartEnd << <fullBlocksPerGrid, blockSize >> > (N, dev_gridIndices,
 	  dev_startIndices, dev_endIndices);
 
-  std::unique_ptr<int[]> startIndices{ new int[gridCellSize] };
-  std::unique_ptr<int[]> endIndices{ new int[gridCellSize] };
+  std::unique_ptr<int[]> startIndices{ new int[N] };
+  std::unique_ptr<int[]> endIndices{ new int[N] };
 
-  cudaMemcpy(startIndices.get(), dev_startIndices, sizeof(int) * gridCellSize, cudaMemcpyDeviceToHost);
-  cudaMemcpy(endIndices.get(), dev_endIndices, sizeof(int) * gridCellSize, cudaMemcpyDeviceToHost);
+  cudaMemcpy(startIndices.get(), dev_startIndices, sizeof(int) * N, cudaMemcpyDeviceToHost);
+  cudaMemcpy(endIndices.get(), dev_endIndices, sizeof(int) * N, cudaMemcpyDeviceToHost);
   checkCUDAErrorWithLine("memcpy back failed!");
 
   std::cout << "start and end indices: " << std::endl;
-  for (int i = 0; i < gridCellSize; i++) {
+  for (int i = 0; i < N; i++) {
 	  std::cout << "  i=" << i;
 	  std::cout << " start: " << startIndices[i];
 	  std::cout << " end: " << endIndices[i] << std::endl;
   }
 
-  // cleanup
-  cudaFree(dev_intKeys);
-  cudaFree(dev_intValues);
+  cudaFree(dev_pos);
+  cudaFree(dev_arrayIndices);
+  cudaFree(dev_gridIndices);
   cudaFree(dev_startIndices);
   cudaFree(dev_endIndices);
   return;
