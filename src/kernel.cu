@@ -380,16 +380,12 @@ __global__ void kernIdentifyCellStartEnd(int N, int *particleGridIndices,
   int index = (blockIdx.x * blockDim.x) + threadIdx.x;
   if (index >= N) return;
 
-  if (index == 0) { 
-    gridCellStartIndices[particleGridIndices[index]] = index; 
-    return; 
+  if (index == 0 || particleGridIndices[index] != particleGridIndices[index - 1]) {
+    gridCellStartIndices[particleGridIndices[index]] = index;
   }
-  if (index == N - 1) gridCellEndIndices[particleGridIndices[index]] = index;
 
-  int prev = index - 1;
-  if (particleGridIndices[prev] != particleGridIndices[index]) {
-      gridCellStartIndices[particleGridIndices[index]] = index;
-      gridCellEndIndices[particleGridIndices[prev]] = prev;
+  if (index == N - 1 || particleGridIndices[index] != particleGridIndices[index + 1]) {
+    gridCellEndIndices[particleGridIndices[index]] = index;
   }
 }
 
