@@ -16,7 +16,7 @@
 #define VISUALIZE 1
 #define UNIFORM_GRID 1
 #define COHERENT_GRID 1
-#define GRIDLOOP_OPT 1 //Grid looping optimization
+#define GRIDLOOP_OPT 0 //Grid looping optimization
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
 const int N_FOR_VIS = 100000;

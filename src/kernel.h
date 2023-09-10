@@ -15,6 +15,7 @@ namespace Boids {
     void stepSimulationScatteredGrid(float dt);
     void stepSimulationCoherentGrid(float dt);
     void stepSimulationCoherentGridLoopingOptimization(float dt);
+    void stepSimulationCoherentGridSharedMemOptimization(float dt);
     void copyBoidsToVBO(float *vbodptr_positions, float *vbodptr_velocities);
 
     void endSimulation();

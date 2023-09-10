@@ -56,6 +56,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 /*! Size of the grid equals to max rule distance. */
 #define SINGLE_MAX_DISTANCE_GRID 0
 
+
 /***********************************************
 * Kernel state (pointers are device pointers) *
 ***********************************************/
@@ -84,6 +85,8 @@ thrust::device_ptr<int> dev_thrust_particleGridIndices;
 
 int *dev_gridCellStartIndices; // What part of dev_particleArrayIndices belongs
 int *dev_gridCellEndIndices;   // to this cell?
+
+__device__ unsigned int maxNumParticlesInGrid = 0;
 
 // TODO-2.3 - consider what additional buffers you might need to reshuffle
 // the position and velocity data to be coherent within cells.
@@ -351,8 +354,25 @@ __global__ void kernComputeIndices(int N, int gridResolution,
     indices[index] = index;
     glm::vec3 fidx = (pos[index] - gridMin) * inverseCellWidth;
     gridIndices[index] = gridIndex3Dto1D((int)fidx.x, (int)fidx.y, (int)fidx.z, gridResolution);
+}
 
-     
+__global__ void kernComputeMortonCodeNaive(int N, int gridResolution,
+    glm::vec3 gridMin, float inverseCellWidth,
+    glm::vec3* pos, int* indices, uint64_t* zIndices) {
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+    if (index >= N) return;
+    indices[index] = index;
+    glm::vec3 fidx = (pos[index] - gridMin) * inverseCellWidth;
+    uint64_t x = fidx.x, y = fidx.y, z = fidx.z;
+    uint64_t zidx = 0;
+    for (int i = 0; i < 21; i++)
+    {
+        zidx |= (x & 1) << (i * 3);
+        zidx |= (y & 1) << (i * 3 + 1);
+        zidx |= (z & 1) << (i * 3 + 2);
+        x >>= 1; y >>= 1; z >>= 1;
+    }
+    zIndices[index] = zidx;
 }
 
 // LOOK-2.1 Consider how this could be useful for indicating that a cell
@@ -364,7 +384,7 @@ __global__ void kernResetIntBuffer(int N, int* intBuffer, int value) {
   }
 }
 
-__global__ void kernIdentifyCellStartEnd(int N, int*particleGridIndices,
+__global__ void kernIdentifyCellStartEnd(int N, int* particleGridIndices,
     int* gridCellStartIndices, int* gridCellEndIndices) {
   // TODO-2.1
   // Identify the start point of each cell in the gridIndices array.
@@ -388,6 +408,18 @@ __global__ void kernIdentifyCellStartEnd(int N, int*particleGridIndices,
             gridCellEndIndices[particleGridIndices[index]] = index + 1;
         }
     }
+}
+
+__global__ void kernIdentifyMaxNumParticlesInGrid(int N, int* gridCellStartIndices, int* gridCellEndIndices)
+{
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+    __shared__ int blk_sz;
+    if (threadIdx.x == 0) blk_sz = 0;
+    __syncthreads();
+    if (index < N)
+        atomicMax(&blk_sz, gridCellEndIndices[N] - gridCellStartIndices[N]);
+    __syncthreads();
+    atomicMax(&maxNumParticlesInGrid, blk_sz);
 }
 
 __global__ void kernUpdateVelNeighborSearchScattered(
@@ -668,69 +700,72 @@ void Boids::stepSimulationNaive(float dt) {
 }
 
 void Boids::stepSimulationScatteredGrid(float dt) {
-    int n = (numObjects + blockSize - 1) / blockSize;
+    int n1 = (numObjects + blockSize - 1) / blockSize;
+    int n2 = (gridCellCount + blockSize - 1) / blockSize;
   // TODO-2.1
   // Uniform Grid Neighbor search using Thrust sort.
   // In Parallel:
   // - label each particle with its array index as well as its grid index.
   //   Use 2x width grids.
-    kernComputeIndices << < n, blockSize >> > (numObjects, gridSideCount, gridMinimum, gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
+    kernComputeIndices << < n1, blockSize >> > (numObjects, gridSideCount, gridMinimum, gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
   // - Unstable key sort using Thrust. A stable sort isn't necessary, but you
   //   are welcome to do a performance comparison.
     thrust::sort_by_key(dev_thrust_particleGridIndices, dev_thrust_particleGridIndices + numObjects, dev_thrust_particleArrayIndices);
   // - Naively unroll the loop for finding the start and end indices of each
   //   cell's data pointers in the array of boid indices
-    kernResetIntBuffer << < n, blockSize >> > (gridCellCount, dev_gridCellStartIndices, -1);
-    kernResetIntBuffer << < n, blockSize >> > (gridCellCount, dev_gridCellEndIndices, -1);
-    kernIdentifyCellStartEnd << < n, blockSize >> > (numObjects, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
+    kernResetIntBuffer << < n2, blockSize >> > (gridCellCount, dev_gridCellStartIndices, -1);
+    kernResetIntBuffer << < n2, blockSize >> > (gridCellCount, dev_gridCellEndIndices, -1);
+    kernIdentifyCellStartEnd << < n1, blockSize >> > (numObjects, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
   // - Perform velocity updates using neighbor search
-    kernUpdateVelNeighborSearchScattered << < n, blockSize >> > (numObjects, gridSideCount, gridMinimum, gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_particleArrayIndices, dev_pos, dev_vel1, dev_vel2);
+    kernUpdateVelNeighborSearchScattered << < n1, blockSize >> > (numObjects, gridSideCount, gridMinimum, gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_particleArrayIndices, dev_pos, dev_vel1, dev_vel2);
   // - Update positions
-    kernUpdatePos << <n, blockSize >> > (numObjects, dt, dev_pos, dev_vel2);
+    kernUpdatePos << <n1, blockSize >> > (numObjects, dt, dev_pos, dev_vel2);
   // - Ping-pong buffers as needed
     std::swap(dev_vel1, dev_vel2);
 }
 
 void Boids::stepSimulationCoherentGrid(float dt) {
-    int n = (numObjects + blockSize - 1) / blockSize;
+    int n1 = (numObjects + blockSize - 1) / blockSize;
+    int n2 = (gridCellCount + blockSize - 1) / blockSize;
     int N = numObjects;
   // TODO-2.3 - start by copying Boids::stepSimulationNaiveGrid
   // Uniform Grid Neighbor search using Thrust sort on cell-coherent data.
   // In Parallel:
   // - Label each particle with its array index as well as its grid index.
   //   Use 2x width grids
-    kernComputeIndices << < n, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
+    kernComputeIndices << < n1, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
   // - Unstable key sort using Thrust. A stable sort isn't necessary, but you
   //   are welcome to do a performance comparison.
     thrust::sort_by_key(dev_thrust_particleGridIndices, dev_thrust_particleGridIndices + numObjects, dev_thrust_particleArrayIndices);
   // - Naively unroll the loop for finding the start and end indices of each
   //   cell's data pointers in the array of boid indices
-    kernResetIntBuffer << < n, blockSize >> > (gridCellCount, dev_gridCellStartIndices, -1);
-    kernResetIntBuffer << < n, blockSize >> > (gridCellCount, dev_gridCellEndIndices, -1);
-    kernIdentifyCellStartEnd << < n, blockSize >> > (N, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
+    kernResetIntBuffer << < n2, blockSize >> > (gridCellCount, dev_gridCellStartIndices, -1);
+    kernResetIntBuffer << < n2, blockSize >> > (gridCellCount, dev_gridCellEndIndices, -1);
+    kernIdentifyCellStartEnd << < n1, blockSize >> > (N, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
   // - BIG DIFFERENCE: use the rearranged array index buffer to reshuffle all
   //   the particle data in the simulation array.
   //   CONSIDER WHAT ADDITIONAL BUFFERS YOU NEED
-    kernShufflePosAndVel1 << < n, blockSize >> > (N, dev_particleArrayIndices, dev_pos, dev_vel1, dev_pos_reordered, dev_vel1_reordered);
+    kernShufflePosAndVel1 << < n1, blockSize >> > (N, dev_particleArrayIndices, dev_pos, dev_vel1, dev_pos_reordered, dev_vel1_reordered);
   // - Perform velocity updates using neighbor search
-    kernUpdateVelNeighborSearchCoherent << < n, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_pos_reordered, dev_vel1_reordered, dev_vel2_reordered);
-    kernUnshuffleVel2 << < n, blockSize >> > (N, dev_particleArrayIndices, dev_vel2_reordered, dev_vel2);
+    kernUpdateVelNeighborSearchCoherent << < n1, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_pos_reordered, dev_vel1_reordered, dev_vel2_reordered);
+    kernUnshuffleVel2 << < n1, blockSize >> > (N, dev_particleArrayIndices, dev_vel2_reordered, dev_vel2);
     // - Update positions
-    kernUpdatePos << <n, blockSize >> > (numObjects, dt, dev_pos, dev_vel2);
+    kernUpdatePos << <n1, blockSize >> > (numObjects, dt, dev_pos, dev_vel2);
   // - Ping-pong buffers as needed. THIS MAY BE DIFFERENT FROM BEFORE.
     std::swap(dev_vel1, dev_vel2);
 }
 
 void Boids::stepSimulationCoherentGridLoopingOptimization(float dt) 
 {
-    int n = (numObjects + blockSize - 1) / blockSize;
+    int n1 = (numObjects + blockSize - 1) / blockSize;
+    int n2 = (gridCellCount + blockSize - 1) / blockSize;
     int N = numObjects;
     // TODO-2.3 - start by copying Boids::stepSimulationNaiveGrid
     // Uniform Grid Neighbor search using Thrust sort on cell-coherent data.
     // In Parallel:
     // - Label each particle with its array index as well as its grid index.
     //   Use 2x width grids
-    kernComputeIndices << < n, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
+    kernComputeIndices << < n1, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
     // - Unstable key sort using Thrust. A stable sort isn't necessary, but you
     //   are welcome to do a performance comparison.
     thrust::device_ptr<int> dev_thrust_keys(dev_particleGridIndices);
@@ -738,18 +773,49 @@ void Boids::stepSimulationCoherentGridLoopingOptimization(float dt)
     thrust::sort_by_key(dev_thrust_keys, dev_thrust_keys + N, dev_thrust_values);
     // - Naively unroll the loop for finding the start and end indices of each
     //   cell's data pointers in the array of boid indices
-    kernResetIntBuffer << < n, blockSize >> > (gridCellCount, dev_gridCellStartIndices, -1);
-    kernResetIntBuffer << < n, blockSize >> > (gridCellCount, dev_gridCellEndIndices, -1);
-    kernIdentifyCellStartEnd << < n, blockSize >> > (N, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
+    kernResetIntBuffer << < n2, blockSize >> > (gridCellCount, dev_gridCellStartIndices, -1);
+    kernResetIntBuffer << < n2, blockSize >> > (gridCellCount, dev_gridCellEndIndices, -1);
+    kernIdentifyCellStartEnd << < n1, blockSize >> > (N, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
     // - BIG DIFFERENCE: use the rearranged array index buffer to reshuffle all
     //   the particle data in the simulation array.
     //   CONSIDER WHAT ADDITIONAL BUFFERS YOU NEED
-    kernShufflePosAndVel1 << < n, blockSize >> > (N, dev_particleArrayIndices, dev_pos, dev_vel1, dev_pos_reordered, dev_vel1_reordered);
+    kernShufflePosAndVel1 << < n1, blockSize >> > (N, dev_particleArrayIndices, dev_pos, dev_vel1, dev_pos_reordered, dev_vel1_reordered);
     // - Perform velocity updates using neighbor search
-    kernUpdateVelNeighborSearchCoherentGridLoopingOptimization << < n, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_pos_reordered, dev_vel1_reordered, dev_vel2_reordered);
-    kernUnshuffleVel2 << < n, blockSize >> > (N, dev_particleArrayIndices, dev_vel2_reordered, dev_vel2);
+    kernUpdateVelNeighborSearchCoherentGridLoopingOptimization << < n1, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_pos_reordered, dev_vel1_reordered, dev_vel2_reordered);
+    kernUnshuffleVel2 << < n1, blockSize >> > (N, dev_particleArrayIndices, dev_vel2_reordered, dev_vel2);
     // - Update positions
-    kernUpdatePos << <n, blockSize >> > (numObjects, dt, dev_pos, dev_vel2);
+    kernUpdatePos << <n1, blockSize >> > (numObjects, dt, dev_pos, dev_vel2);
+    // - Ping-pong buffers as needed. THIS MAY BE DIFFERENT FROM BEFORE.
+    std::swap(dev_vel1, dev_vel2);
+}
+
+void Boids::stepSimulationCoherentGridSharedMemOptimization(float dt) {
+    int n1 = (numObjects + blockSize - 1) / blockSize;
+    int n2 = (gridCellCount + blockSize - 1) / blockSize;
+    int N = numObjects;
+    // TODO-2.3 - start by copying Boids::stepSimulationNaiveGrid
+    // Uniform Grid Neighbor search using Thrust sort on cell-coherent data.
+    // In Parallel:
+    // - Label each particle with its array index as well as its grid index.
+    //   Use 2x width grids
+    kernComputeIndices << < n1, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
+    // - Unstable key sort using Thrust. A stable sort isn't necessary, but you
+    //   are welcome to do a performance comparison.
+    thrust::sort_by_key(dev_thrust_particleGridIndices, dev_thrust_particleGridIndices + numObjects, dev_thrust_particleArrayIndices);
+    // - Naively unroll the loop for finding the start and end indices of each
+    //   cell's data pointers in the array of boid indices
+    kernResetIntBuffer << < n2, blockSize >> > (gridCellCount, dev_gridCellStartIndices, -1);
+    kernResetIntBuffer << < n2, blockSize >> > (gridCellCount, dev_gridCellEndIndices, -1);
+    kernIdentifyCellStartEnd << < n1, blockSize >> > (N, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
+    // - BIG DIFFERENCE: use the rearranged array index buffer to reshuffle all
+    //   the particle data in the simulation array.
+    //   CONSIDER WHAT ADDITIONAL BUFFERS YOU NEED
+    kernShufflePosAndVel1 << < n1, blockSize >> > (N, dev_particleArrayIndices, dev_pos, dev_vel1, dev_pos_reordered, dev_vel1_reordered);
+    // - Perform velocity updates using neighbor search
+    kernUpdateVelNeighborSearchCoherent << < n1, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_pos_reordered, dev_vel1_reordered, dev_vel2_reordered);
+    kernUnshuffleVel2 << < n1, blockSize >> > (N, dev_particleArrayIndices, dev_vel2_reordered, dev_vel2);
+    // - Update positions
+    kernUpdatePos << <n1, blockSize >> > (numObjects, dt, dev_pos, dev_vel2);
     // - Ping-pong buffers as needed. THIS MAY BE DIFFERENT FROM BEFORE.
     std::swap(dev_vel1, dev_vel2);
 }
