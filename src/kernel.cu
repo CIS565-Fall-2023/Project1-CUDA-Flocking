@@ -40,7 +40,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 *****************/
 
 /*! Block size used for CUDA kernel launch. */
-#define blockSize 64
+#define blockSize 256
 
 // LOOK-1.2 Parameters for the boids algorithm.
 // These worked well in our reference implementation.
@@ -55,7 +55,10 @@ void checkCUDAError(const char *msg, int line = -1) {
 #define maxSpeed 1.0f
 
 /*! Size of the starting area in simulation space. */
-#define scene_scale 100.0f
+#define scene_scale 1600.0f
+
+#define USE_27_NEIGHBOR 0 /* Use 27 neighbors or 8 neighbors */
+
 
 /***********************************************
 * Kernel state (pointers are device pointers) *
@@ -98,6 +101,8 @@ int gridSideCount;
 float gridCellWidth;
 float gridInverseCellWidth;
 glm::vec3 gridMinimum;
+
+
 
 /******************
 * initSimulation *
@@ -424,17 +429,29 @@ __global__ void kernUpdateVelNeighborSearchScattered(
         const glm::vec3 self_pos = pos[iSelf];
 
         // - Identify the grid cell that this particle is in
-        //const glm::vec3 gridIndex3D = glm::floor((self_pos - gridMin) * inverseCellWidth);
         //const float maxDistance = max(rule1Distance, max(rule2Distance, rule3Distance));
         //const glm::vec3 searchRange = ;
-        glm::vec3 maxGridIndex3D(glm::floor((self_pos + glm::vec3(max(rule1Distance, max(rule2Distance, rule3Distance))) - gridMin) * inverseCellWidth));
-        glm::vec3 minGridIndex3D(glm::floor((self_pos - glm::vec3(max(rule1Distance, max(rule2Distance, rule3Distance))) - gridMin) * inverseCellWidth));
-
         glm::vec3 perceived_center(0.0, 0.0, 0.0);
         glm::vec3 c(0.0, 0.0, 0.0);
         glm::vec3 perceived_velocity(0.0, 0.0, 0.0);
         int rule1_neighbor_cnt = 0;
         int rule3_neighbor_cnt = 0;
+
+#if USE_27_NEIGHBOR
+        const glm::vec3 gridIndex3D = glm::floor((self_pos - gridMin) * inverseCellWidth);
+        for (int z = gridIndex3D.z - 1; z <= gridIndex3D.z + 1; z++)
+        {
+            //if (z < 0 || z >= gridResolution) continue;
+            for (int y = gridIndex3D.y - 1; y <= gridIndex3D.y + 1; y++)
+            {
+                //if (y < 0 || y >= gridResolution) continue;
+                for (int x = gridIndex3D.x - 1; x <= gridIndex3D.x + 1; x++)
+                {
+                    //if (x < 0 || x >= gridResolution) continue;
+#else
+        const glm::vec3 maxGridIndex3D(glm::floor((self_pos + glm::vec3(max(rule1Distance, max(rule2Distance, rule3Distance))) - gridMin) * inverseCellWidth));
+        const glm::vec3 minGridIndex3D(glm::floor((self_pos - glm::vec3(max(rule1Distance, max(rule2Distance, rule3Distance))) - gridMin) * inverseCellWidth));
+
         for (int z = minGridIndex3D.z; z <= maxGridIndex3D.z; z++)
         {
             //if (z < 0 || z >= gridResolution) continue;
@@ -443,16 +460,8 @@ __global__ void kernUpdateVelNeighborSearchScattered(
                 //if (y < 0 || y >= gridResolution) continue;
                 for (int x = minGridIndex3D.x; x <= maxGridIndex3D.x; x++)
                 {
-                    //if (x < 0 || x >= gridResolution) continue;
-        //for (int z = gridIndex3D.z - 1; z <= gridIndex3D.z + 1; z++)
-        //{
-        //    //if (z < 0 || z >= gridResolution) continue;
-        //    for (int y = gridIndex3D.y - 1; y <= gridIndex3D.y + 1; y++)
-        //    {
-        //        //if (y < 0 || y >= gridResolution) continue;
-        //        for (int x = gridIndex3D.x - 1; x <= gridIndex3D.x + 1; x++)
-        //        {
-                    //if (x < 0 || x >= gridResolution) continue;
+                    //if (x < 0 || x >= gridResolution) continue
+#endif
                     int cellIndex = gridIndex3Dto1D(x, y, z, gridResolution);
                     int startIndex = gridCellStartIndices[cellIndex];
                     int endIndex = gridCellEndIndices[cellIndex];
