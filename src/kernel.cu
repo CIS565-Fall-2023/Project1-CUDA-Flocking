@@ -37,7 +37,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 *****************/
 
 /*! Block size used for CUDA kernel launch. */
-#define blockSize 128
+#define blockSize 256
 
 // LOOK-1.2 Parameters for the boids algorithm.
 // These worked well in our reference implementation.
@@ -702,7 +702,7 @@ void Boids::stepSimulationCoherentGrid(float dt) {
 
     glm::vec3 *tmp_pos = dev_pos;
     dev_pos = dev_pos_rearranged;
-    dev_pos_rearranged = tmp_pos;
+    dev_pos_rearranged = tmp_pos; // need to swap here so we dont get both pointers to buffer B
 
     glm::vec3 *tmp_vel = dev_vel1;
     dev_vel1 = dev_vel_rearranged;
