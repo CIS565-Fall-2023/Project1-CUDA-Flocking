@@ -5,14 +5,14 @@ Project 1 - Flocking**
   * [LinkedIn](https://www.linkedin.com/in/zhenzhong-anthony-tang-82334a210), [Instagram](https://instagram.com/toytag12), [personal website](https://toytag.net/)
 * Tested on: Windows 11 Pro 22H2, AMD EPYC 7V12 64-Core Processor (4 vCPU cores) @ 2.44GHz 28GiB, Tesla T4 16GiB (Azure)
 
-## Boids, A Flocking Simulation
+# Boids, A Flocking Simulation
 
 ![](images/demo.gif)
 
 This demo is a CUDA-based coherent uniform grid search implementation of the [Boids](https://en.wikipedia.org/wiki/Boids) flocking simulation algorithm. The algorithm, developed by Craig Reynolds in 1986, simulates the flocking behaviour of birds. The goal of this project is to implement the algorithm with CUDA in different ways and optimize performance.
 
 
-## Naive Implementation
+### Naive Implementation
 
 A simple implementation of the algorithm is to iterate through each boid and calculate the updated velocity and position based on [three rules](http://www.vergenet.net/~conrad/boids/pseudocode.html). Even with CUDA parallelization, this method is slow because each boid needs to check the position of every other boid. There are $O(n^2)$ global memory access, causing the CUDA program to be heavily memory-bounded.
 
@@ -42,6 +42,8 @@ We use average Frames Per Second (FPS) to compare the performance of different i
 ![](images/FPS%20with%20Visualization%20OFF.svg)
 
 We see the performance of naive implementation is worse than grid searches. The coherent grid search implementation is the fastest, with a 3x speedup compared to the naive implementation with 5,000 boids. With more boids, we see more significant speedup. The coherent grid search is even 10x faster than the scattered grid search in 500,000 and 1,000,000 boids tests.
+
+Though with visualization on, the peek performance of the coherent grid search is lower than turning off the visualization. It could be argued that the visualization is the bottleneck, but the performance of the coherent grid search is still better than others.
 
 ### Block Size
 
