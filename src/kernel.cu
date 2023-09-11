@@ -375,9 +375,9 @@ __global__ void kernComputeIndices(int N, int gridResolution,
 
     int grid_index;
 
-    glm::vec3 threeD_index = glm::floor(inverseCellWidth * (pos[index] - gridMin));
+    glm::vec3 threeD_index = inverseCellWidth * (pos[index] - gridMin);
 
-    int oneD_index = gridIndex3Dto1D(threeD_index.x, threeD_index.y, threeD_index.z, gridResolution);
+    int oneD_index = gridIndex3Dto1D((int)threeD_index.x, (int)threeD_index.y, (int)threeD_index.z, (int)gridResolution);
     gridIndices[index] = oneD_index;
 
 
