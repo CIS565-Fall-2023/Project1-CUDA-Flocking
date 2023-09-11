@@ -426,8 +426,12 @@ __global__ void kernUpdateVelNeighborSearchScattered(
     glm::vec3 particleVel = vel1[index];
 
     // Calculate the distance from the particle to the grid's minimum boundary
-    glm::vec3 offset = particlePos - gridMin;
-    glm::ivec3 gridCoord(round(offset.x * inverseCellWidth), round(offset.y * inverseCellWidth), round(offset.z * inverseCellWidth));
+    glm::vec3 distanceFromGridMin = particlePos - gridMin;
+    glm::ivec3 gridCoord(
+        round(distanceFromGridMin.x * inverseCellWidth),
+        round(distanceFromGridMin.y * inverseCellWidth),
+        round(distanceFromGridMin.z * inverseCellWidth)
+    );
 
     int gridIdx = gridIndex3Dto1D(gridCoord.x, gridCoord.y, gridCoord.z, gridResolution);
 
@@ -441,11 +445,9 @@ __global__ void kernUpdateVelNeighborSearchScattered(
     int zOffset = determineDirection(distanceFromGridMin.z, gridCoord.z, cellWidth);
 
     // Iterate through nearby cells in the spatial grid
-    for (int z = gridCoord.z; abs(z - gridCoord.z) < radius; z += zOffset)
-    {
-        for (int y = gridCoord.y; abs(y - gridCoord.y) < radius; y += yOffset)
-        {
-            for (int x = gridCoord.x; abs(x - gridCoord.x) < radius; x += xOffset)
+    for (int z = gridCoord.z; z < gridCoord.z + radius && z > gridCoord.z - radius; z += zOffset) {
+        for (int y = gridCoord.y; y < gridCoord.y + radius && y > gridCoord.y - radius; y += yOffset) {
+            for (int x = gridCoord.x; x < gridCoord.x + radius && x > gridCoord.x - radius; x += xOffset)
             {
                 int checkIdx = gridIndex3Dto1D(x, y, z, gridResolution);
 
@@ -558,9 +560,9 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
     int yOffset = determineDirection(distanceFromGridMin.y, gridCoord.y, cellWidth);
     int zOffset = determineDirection(distanceFromGridMin.z, gridCoord.z, cellWidth);
 
-    for (int z = gridCoord.z; abs(z - gridCoord.z) < radius; z += zOffset) {
-        for (int y = gridCoord.y; abs(y - gridCoord.y) < radius; y += yOffset) {
-            for (int x = gridCoord.x; abs(x - gridCoord.x) < radius; x += xOffset) {
+    for (int z = gridCoord.z; z < gridCoord.z + radius && z > gridCoord.z - radius; z += zOffset) {
+        for (int y = gridCoord.y; y < gridCoord.y + radius && y > gridCoord.y - radius; y += yOffset) {
+            for (int x = gridCoord.x; x < gridCoord.x + radius && x > gridCoord.x - radius; x += xOffset) {
 
                 int checkIdx = gridIndex3Dto1D(x, y, z, gridResolution);
                 if (checkIdx < 0 || checkIdx >= gridResolution * gridResolution * gridResolution)
