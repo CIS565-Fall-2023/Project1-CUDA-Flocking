@@ -183,7 +183,7 @@ void initShaders(GLuint * program) {
   //====================================
   // Main loop
   //====================================
-  void runCUDA() {
+  void runCUDA(cudaEvent_t &start, cudaEvent_t &stop, float &elapsedTime) {
     // Map OpenGL buffer object for writing from CUDA on a single GPU
     // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not
     // use this buffer
@@ -196,6 +196,7 @@ void initShaders(GLuint * program) {
     cudaGLMapBufferObject((void**)&dptrVertVelocities, boidVBO_velocities);
 
     // execute the kernel
+    cudaEventRecord(start, 0);
     #if UNIFORM_GRID && COHERENT_GRID
     Boids::stepSimulationCoherentGrid(DT);
     #elif UNIFORM_GRID
@@ -203,6 +204,9 @@ void initShaders(GLuint * program) {
     #else
     Boids::stepSimulationNaive(DT);
     #endif
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&elapsedTime, start, stop);
 
     #if VISUALIZE
     Boids::copyBoidsToVBO(dptrVertPositions, dptrVertVelocities);
@@ -216,6 +220,10 @@ void initShaders(GLuint * program) {
     double fps = 0;
     double timebase = 0;
     int frame = 0;
+    cudaEvent_t start, stop;
+    float elapsedTime = 0;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
     Boids::unitTest(); // LOOK-1.2 We run some basic example code to make sure
                        // your CUDA development setup is ready to go.
@@ -232,13 +240,17 @@ void initShaders(GLuint * program) {
         frame = 0;
       }
 
-      runCUDA();
+      runCUDA(start, stop, elapsedTime);
 
       std::ostringstream ss;
       ss << "[";
       ss.precision(1);
       ss << std::fixed << fps;
-      ss << " fps] " << deviceName;
+      ss << " fps] "; 
+      ss.precision(3);
+      ss << "[" << elapsedTime << " ms] ";
+      ss << deviceName;
+      ss << " (" << N_FOR_VIS << " Bodies)";
       glfwSetWindowTitle(window, ss.str().c_str());
 
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -258,6 +270,9 @@ void initShaders(GLuint * program) {
     }
     glfwDestroyWindow(window);
     glfwTerminate();
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
   }
 
 
@@ -290,8 +305,8 @@ void initShaders(GLuint * program) {
       updateCamera();
     }
 
-	lastX = xpos;
-	lastY = ypos;
+  lastX = xpos;
+  lastY = ypos;
   }
 
   void updateCamera() {

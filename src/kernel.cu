@@ -36,6 +36,9 @@ void checkCUDAError(const char *msg, int line = -1) {
 * Configuration *
 *****************/
 
+// Search 27 nearby cells instead of 8, uncomment to enable.
+//#define SEARCH27
+
 /*! Block size used for CUDA kernel launch. */
 #define blockSize 128
 
@@ -159,7 +162,11 @@ void Boids::initSimulation(int N) {
   checkCUDAErrorWithLine("kernGenerateRandomPosArray failed!");
 
   // LOOK-2.1 computing grid params
+#ifdef SEARCH27
+  gridCellWidth = 1.0f * std::max(std::max(rule1Distance, rule2Distance), rule3Distance);
+#else
   gridCellWidth = 2.0f * std::max(std::max(rule1Distance, rule2Distance), rule3Distance);
+#endif
   int halfSideCount = (int)(scene_scale / gridCellWidth) + 1;
   gridSideCount = 2 * halfSideCount;
 
@@ -425,21 +432,22 @@ __global__ void kernUpdateVelNeighborSearchScattered(
         }
         for (int i = startIndex; i <= endIndex; i++) {
           int boidIndex = particleArrayIndices[i];
-          if (boidIndex != index) {
-            glm::vec3 otherPos = pos[boidIndex], otherVel = vel1[boidIndex];
-            float distance = glm::distance(otherPos, thisPos);
-            // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
-            if (distance < rule1Distance) {
-              pc += otherPos;
-              numNeighbors1++;
-            }
-            // Rule 2: boids try to stay a distance d away from each other
-            if (distance < rule2Distance) c -= (otherPos - thisPos);
-            // Rule 3: boids try to match the speed of surrounding boids
-            if (distance < rule3Distance) {
-              pv += otherVel;
-              numNeighbors3++;
-            }
+          if (boidIndex == index) {
+            continue;
+          }
+          glm::vec3 otherPos = pos[boidIndex], otherVel = vel1[boidIndex];
+          float distance = glm::distance(otherPos, thisPos);
+          // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
+          if (distance < rule1Distance) {
+            pc += otherPos;
+            numNeighbors1++;
+          }
+          // Rule 2: boids try to stay a distance d away from each other
+          if (distance < rule2Distance) c -= (otherPos - thisPos);
+          // Rule 3: boids try to match the speed of surrounding boids
+          if (distance < rule3Distance) {
+            pv += otherVel;
+            numNeighbors3++;
           }
         }
       }
@@ -507,22 +515,22 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
           continue;
         }
         for (int boidIndex = startIndex; boidIndex <= endIndex; boidIndex++) {
-          if (boidIndex != index) {
-            // optimize pos and vel access using shared memory
-            glm::vec3 otherPos = pos[boidIndex], otherVel = vel1[boidIndex]; // SHARED MEMORY
-            float distance = glm::distance(otherPos, thisPos);
-            // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
-            if (distance < rule1Distance) {
-              pc += otherPos;
-              numNeighbors1++;
-            }
-            // Rule 2: boids try to stay a distance d away from each other
-            if (distance < rule2Distance) c -= (otherPos - thisPos);
-            // Rule 3: boids try to match the speed of surrounding boids
-            if (distance < rule3Distance) {
-              pv += otherVel;
-              numNeighbors3++;
-            }
+          if (boidIndex == index) {
+            continue;
+          }
+          glm::vec3 otherPos = pos[boidIndex], otherVel = vel1[boidIndex];
+          float distance = glm::distance(otherPos, thisPos);
+          // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
+          if (distance < rule1Distance) {
+            pc += otherPos;
+            numNeighbors1++;
+          }
+          // Rule 2: boids try to stay a distance d away from each other
+          if (distance < rule2Distance) c -= (otherPos - thisPos);
+          // Rule 3: boids try to match the speed of surrounding boids
+          if (distance < rule3Distance) {
+            pv += otherVel;
+            numNeighbors3++;
           }
         }
       }
