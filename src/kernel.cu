@@ -37,7 +37,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 *****************/
 
 /*! Block size used for CUDA kernel launch. */
-#define blockSize 16
+#define blockSize 128
 
 // LOOK-1.2 Parameters for the boids algorithm.
 // These worked well in our reference implementation.
@@ -466,32 +466,33 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 
                 int gridIndex_oneD = gridIndex3Dto1D(t, q, i, gridResolution);
 
-                if (gridCellStartIndices[gridIndex_oneD] == -1) {
-                    continue;
-                }
-
-                for (int v = gridCellStartIndices[gridIndex_oneD]; v < gridCellEndIndices[gridIndex_oneD]+1; v++) {
-
-                    int new_v = particleArrayIndices[v];
-                    if (new_v != index) {
+                if (gridCellStartIndices[gridIndex_oneD] >=0) {
                     
-                        glm::vec3 neighbor_pos = pos[new_v];
-                        float distance = glm::distance(curr_pos, neighbor_pos);
+         
+                    for (int v = gridCellStartIndices[gridIndex_oneD]; v < gridCellEndIndices[gridIndex_oneD]+1; v++) {
 
-                        if (distance < rule1Distance) {
-                            perceived_center += neighbor_pos;
-                            rule1_num += 1;
-                        }
-                        if (distance < rule2Distance) {
-                            c -= (neighbor_pos - curr_pos);
-                        }
-                        if (distance < rule3Distance) {
-                            perceived_velocity += vel1[new_v];
-                            rule3_num += 1;
-                        }
+                        int new_v = particleArrayIndices[v];
+                        if (new_v != index) {
                     
-                    }
+                            glm::vec3 neighbor_pos = pos[new_v];
+                            float distance = glm::distance(curr_pos, neighbor_pos);
+
+                            if (distance < rule1Distance) {
+                                perceived_center += neighbor_pos;
+                                rule1_num += 1;
+                            }
+                            if (distance < rule2Distance) {
+                                c -= (neighbor_pos - curr_pos);
+                            }
+                            if (distance < rule3Distance) {
+                                perceived_velocity += vel1[new_v];
+                                rule3_num += 1;
+                            }
+                    
+                        }
                
+                    }
+
                 }
             }
         }
@@ -572,27 +573,28 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 
                 int gridIndex_oneD = gridIndex3Dto1D(t, q, i, gridResolution);
 
-                if (gridCellStartIndices[gridIndex_oneD] == -1) {
-                    continue;
-                }
+                if (gridCellStartIndices[gridIndex_oneD] >= 0) {
+                    
+                
+                    for (int v = gridCellStartIndices[gridIndex_oneD]; v < gridCellEndIndices[gridIndex_oneD] + 1; v++) {
 
-                for (int v = gridCellStartIndices[gridIndex_oneD]; v < gridCellEndIndices[gridIndex_oneD] + 1; v++) {
+                        if (v != index) {
 
-                    if (v != index) {
+                            glm::vec3 neighbor_pos = pos[v];
+                            float distance = glm::distance(curr_pos, neighbor_pos);
 
-                        glm::vec3 neighbor_pos = pos[v];
-                        float distance = glm::distance(curr_pos, neighbor_pos);
+                            if (distance < rule1Distance) {
+                                perceived_center += neighbor_pos;
+                                rule1_num += 1;
+                            }
+                            if (distance < rule2Distance) {
+                                c -= (neighbor_pos - curr_pos);
+                            }
+                            if (distance < rule3Distance) {
+                                perceived_velocity += vel1[v];
+                                rule3_num += 1;
+                            }
 
-                        if (distance < rule1Distance) {
-                            perceived_center += neighbor_pos;
-                            rule1_num += 1;
-                        }
-                        if (distance < rule2Distance) {
-                            c -= (neighbor_pos - curr_pos);
-                        }
-                        if (distance < rule3Distance) {
-                            perceived_velocity += vel1[v];
-                            rule3_num += 1;
                         }
 
                     }
