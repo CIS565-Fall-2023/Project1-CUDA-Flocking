@@ -37,7 +37,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 *****************/
 
 /*! Block size used for CUDA kernel launch. */
-#define blockSize 128
+#define blockSize 256
 
 // LOOK-1.2 Parameters for the boids algorithm.
 // These worked well in our reference implementation.
@@ -414,15 +414,16 @@ __global__ void kernUpdateVelNeighborSearchScattered(
 
   int index = threadIdx.x + (blockIdx.x * blockDim.x);
   if (index >= N) return;
-  glm::vec3 gridIdx = inverseCellWidth * (pos[index] - gridMin);
 
-  int startX = imax(0, gridIdx.x - 0.5);
-  int startY = imax(0, gridIdx.y - 0.5);
-  int startZ = imax(0, gridIdx.z - 0.5);
+  float neighborhoodDist = glm::max(glm::max(rule1Distance, rule2Distance), rule3Distance);
 
-  int endX = imin(N - 1, gridIdx.x + 0.5);
-  int endY = imin(N - 1, gridIdx.y + 0.5);
-  int endZ = imin(N - 1, gridIdx.z + 0.5);
+  int startX = imax(0, inverseCellWidth * (pos[index].x - neighborhoodDist - gridMin.x));
+  int startY = imax(0, inverseCellWidth * (pos[index].y - neighborhoodDist - gridMin.y));
+  int startZ = imax(0, inverseCellWidth * (pos[index].z - neighborhoodDist - gridMin.z));
+
+  int endX = imin(N - 1, inverseCellWidth * (pos[index].x + neighborhoodDist - gridMin.x));
+  int endY = imin(N - 1, inverseCellWidth * (pos[index].y + neighborhoodDist - gridMin.y));
+  int endZ = imin(N - 1, inverseCellWidth * (pos[index].z + neighborhoodDist - gridMin.z));
 
   int number_of_neighbors_rule1 = 0;
   int number_of_neighbors_rule3 = 0;
@@ -500,15 +501,15 @@ __global__ void kernUpdateVelNeighborSearchCoherent(
 
   int index = threadIdx.x + (blockIdx.x * blockDim.x);
   if (index >= N) return;
-  glm::vec3 gridIdx = inverseCellWidth * (pos[index] - gridMin);
+  float neighborhoodDist = glm::max(glm::max(rule1Distance, rule2Distance), rule3Distance);
 
-  int startX = imax(0, gridIdx.x - 0.5);
-  int startY = imax(0, gridIdx.y - 0.5);
-  int startZ = imax(0, gridIdx.z - 0.5);
+  int startX = imax(0, inverseCellWidth * (pos[index].x - neighborhoodDist - gridMin.x));
+  int startY = imax(0, inverseCellWidth * (pos[index].y - neighborhoodDist - gridMin.y));
+  int startZ = imax(0, inverseCellWidth * (pos[index].z - neighborhoodDist - gridMin.z));
 
-  int endX = imin(N - 1, gridIdx.x + 0.5);
-  int endY = imin(N - 1, gridIdx.y + 0.5);
-  int endZ = imin(N - 1, gridIdx.z + 0.5);
+  int endX = imin(N - 1, inverseCellWidth * (pos[index].x + neighborhoodDist - gridMin.x));
+  int endY = imin(N - 1, inverseCellWidth * (pos[index].y + neighborhoodDist - gridMin.y));
+  int endZ = imin(N - 1, inverseCellWidth * (pos[index].z + neighborhoodDist - gridMin.z));
 
   int number_of_neighbors_rule1 = 0;
   int number_of_neighbors_rule3 = 0;
