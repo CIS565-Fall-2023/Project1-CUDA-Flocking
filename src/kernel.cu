@@ -400,8 +400,8 @@ __global__ void kernReshuffleData(int N, int* particleArrayIndices, glm::vec3* p
     }
 
     int particleIdx = particleArrayIndices[index];
-    posCoherent[index] = pos[index];
-    velCoherent[index] = vel[index];
+    posCoherent[index] = pos[particleIdx];
+    velCoherent[index] = vel[particleIdx];
 }
 
 __global__ void kernIdentifyCellStartEnd(int N, int *particleGridIndices,
