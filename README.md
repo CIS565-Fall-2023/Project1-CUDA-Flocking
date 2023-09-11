@@ -50,5 +50,5 @@ The first reason can also explain that it is not better to do more grids separat
 
 ![](./images/8_cell_vs_27_cell.png)
 
-#### Appendix With visualiazation drawing
-![](./images/end.png)
+#### Appendix:  Comparison between coherent simulation with visualiazation and without
+![](./images/withvisualization_vs_without.png)
