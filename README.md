@@ -1,7 +1,7 @@
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture,
 Project 1 - Flocking**
 
-![Boids Cover Iamge](images/results/50Kboids.PNG)
+![Boids Cover Iamge](images/results/50Kboids.png)
 
 * Linda Zhu
   * [LinkedIn](https://www.linkedin.com/in/lindadaism/), [Portfolio](https://lindadaism.com/)
