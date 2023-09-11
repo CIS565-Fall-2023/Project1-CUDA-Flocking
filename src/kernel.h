@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdlib>
 #include <stdio.h>
 #include <thrust/sort.h>
 #include <thrust/execution_policy.h>
