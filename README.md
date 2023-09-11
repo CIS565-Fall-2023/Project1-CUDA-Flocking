@@ -5,10 +5,6 @@ Project 1 - Flocking**
   * [LinkedIn](https://www.linkedin.com/in/xiaoyue-ma-6b268b193/)
 * Tested on: Windows 10, i7-12700H @ 2.30 GHz 16GB, GTX3060 8GB
 
-* Xiaoyue Ma
-  * [LinkedIn](https://www.linkedin.com/in/xiaoyue-ma-6b268b193/)
-* Tested on: Windows 10, i7-12700H @ 2.30 GHz 16GB, GTX3060 8GB
-
 ### Showcase
 
 * 5k boids (naive) 
