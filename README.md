@@ -60,7 +60,7 @@ Coherent grid search is very similar to scattered, except with one less level of
 
 ![How boid count affects avgFPS and avgKernExecTime](/images/results/avgFPS&avgKernExecTime_numBoids_graph.png)
 
-From the graph we can see, no matter with or without visualization, the average FPS drops as we increase the sample boid count. As expected from the optimization purposes, coherent method has the best performance, then scattered grid method, and naive the worst, since naive is brute force search, scattered with a filter narrowing down the neightboring search targets, and coherent stacking one more layer of optimization on the hardware level, in terms of accessing data less frequently.
+From the graph we can see, no matter with or without visualization, the average FPS drops while the average kernel execution time increases as we increase the sample boid count. As expected from the optimization purposes, coherent method has the best performance, then scattered grid method, and naive the worst, since naive is brute force search, scattered with a filter narrowing down the neightboring search targets, and coherent stacking one more layer of optimization on the hardware level, in terms of accessing data less frequently.
 
 ## Questions
 
