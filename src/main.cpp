@@ -14,8 +14,8 @@
 
 // LOOK-2.1 LOOK-2.3 - toggles for UNIFORM_GRID and COHERENT_GRID
 #define VISUALIZE 1
-#define UNIFORM_GRID 0
-#define COHERENT_GRID 0
+#define UNIFORM_GRID 1
+#define COHERENT_GRID 1
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
 const int N_FOR_VIS = 5000;
@@ -42,6 +42,12 @@ int main(int argc, char* argv[]) {
 
 std::string deviceName;
 GLFWwindow *window;
+
+// For performance analysis
+double averageFps = 0.0;
+double averageExecTime = 0.0; // average kernel execution
+double totalFrames = 0.0;
+double fpsFrames = 0.0;
 
 /**
 * Initialization of CUDA and GLFW.
@@ -195,6 +201,14 @@ void initShaders(GLuint * program) {
     cudaGLMapBufferObject((void**)&dptrVertPositions, boidVBO_positions);
     cudaGLMapBufferObject((void**)&dptrVertVelocities, boidVBO_velocities);
 
+    // For performance analysis:
+    // use CUDA events to measure the time it takes for a kernel to run
+    cudaEvent_t startKern, endKern;
+    cudaEventCreate(&startKern);
+    cudaEventCreate(&endKern);
+
+    cudaEventRecord(startKern); // mark start of kernel execution
+
     // execute the kernel
     #if UNIFORM_GRID && COHERENT_GRID
     Boids::stepSimulationCoherentGrid(DT);
@@ -203,6 +217,13 @@ void initShaders(GLuint * program) {
     #else
     Boids::stepSimulationNaive(DT);
     #endif
+
+    cudaEventRecord(endKern); // mark end of kernel execution
+    cudaEventSynchronize(endKern); // wait for results to be available
+
+    float execTime; // in milliseconds
+    cudaEventElapsedTime(&execTime, startKern, endKern);
+    averageExecTime = (averageExecTime * (totalFrames - 1) + execTime) / totalFrames;
 
     #if VISUALIZE
     Boids::copyBoidsToVBO(dptrVertPositions, dptrVertVelocities);
@@ -225,11 +246,15 @@ void initShaders(GLuint * program) {
 
       frame++;
       double time = glfwGetTime();
+      totalFrames++;
 
       if (time - timebase > 1.0) {
         fps = frame / (time - timebase);
         timebase = time;
         frame = 0;
+
+        fpsFrames++;
+        averageFps = (averageFps * (fpsFrames - 1) + fps) / fpsFrames;
       }
 
       runCUDA();
@@ -237,8 +262,18 @@ void initShaders(GLuint * program) {
       std::ostringstream ss;
       ss << "[";
       ss.precision(1);
-      ss << std::fixed << fps;
-      ss << " fps] " << deviceName;
+      ss << std::fixed << fps << "fps, ";
+      ss.precision(1);
+      ss << std::fixed << averageFps << "avgFps, ";
+      ss.precision(2);
+      ss << std::fixed << averageExecTime << "ms avgKernExec, ";
+      ss << N_FOR_VIS << " boids, ";
+      ss << "blockSize " << Boids::getBlockSize();
+      ss << ", sceneScale ";
+      ss.precision(1);
+      ss << std::fixed << Boids::getSceneScale();
+      ss << "] " << deviceName;
+
       glfwSetWindowTitle(window, ss.str().c_str());
 
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

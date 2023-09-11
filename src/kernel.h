@@ -18,4 +18,7 @@ namespace Boids {
 
     void endSimulation();
     void unitTest();
+
+    int getBlockSize();
+    float getSceneScale();
 }
