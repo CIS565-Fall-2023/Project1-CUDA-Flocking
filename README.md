@@ -13,26 +13,41 @@ This project implements [Craig Reynolds' model](https://www.red3d.com/cwr/boids/
 3. <b>alignment:</b> boids generally try to move with the same direction and speed as their neighbors.
 
 The final implementation looks something like this:  
-![](images/coher_50k_ss100_block128.gif)
 
-More Example Screenshots
-====
-
-| ![](images/naive_10k_ss100_block128.gif) | 
+| ![](images/naive_5k_ss100_block128.gif) | 
 |:--:| 
-| *Naive Flocking: 10,000 Boids, Screen Scale 100, 128 Blocks* |
+| *Naive Flocking: 5000 Boids, Screen Scale 100, 128 Blocks* |
 
-| ![](images/unif_10k_ss100_block128.gif) | 
+| ![](images/coher_50k_ss100_block128.gif) | 
 |:--:| 
-| *Uniform Grid-Based Flocking: 10,000 Boids, Screen Scale 100, 128 Blocks* |
-
-| ![](images/coher_10k_ss100_block128.gif) | 
-|:--:| 
-| *Coherent Grid-Based Flocking: 10,000 Boids, Screen Scale 100, 128 Blocks* |
+| *Coherent Grid-Based Flocking: 50,000 Boids, Screen Scale 100, 128 Blocks* |
 
 | ![](images/coher_1M_ss200_block128.gif) | 
 |:--:| 
 | *Coherent Grid-Based Flocking: 1 Million Boids, Screen Scale 200, 128 Blocks* |
+
+#### We implement 3 different methods to simulate the desired flocking behaviour:
+* **Naive Method:** The naive implemententation simply checks every boids against every other boid to determine which boids are within its neighborhood (i.e. within some max distance from itself). This O(n<sup>2</sup>) method, while considerably slower than the following 2 methods, is a good starting point as well as gives a base-line for comparing the performace of the optimized methods.
+* **Uniform Grid-Based Method:** This method gridifes the entire search space into many cells of certain _cell width_. By doing this, every boid now checks only the boids which lie in grids within the current boid's _neighbourhood search radius_. This significantly cuts down the number of checks we make per boid in the Naive method. The way we implement this is to first label each boid with it's grid cell ID, then sort the boids based on the grid cell ID. Sorting establishes the 'bins' for us wherein it is easy to locate all the boids within a grid. We use thrust for **key-value sorting** with keys as the grid indices and values as the original boid array indices, so that the shuffled array indices can be later used as an indirection layer for position and velocity lookup.
+![](images/Boids%20Ugrid%20neighbor%20search%20shown.png)
+* **Coherent Grid-Based Method:** This is an optimization for the Uniform method, wherein the indirection layer is removed before the velocity update step using additional buffers.
+_For the Uniform and Coherent Grid-Based Methods, we mostly use a cell width that is twice of the boid's neighbourhood search radius. This requires us to only check 8 neighbouring grids to identify potentially affecting boids._
+
+ <table>
+  <tr>
+    <td align="center"><b>Naive Flocking</b></td>
+    <td align="center"><b>Uniform Grid-Based Flocking</b></td>
+    <td align="center"><b>Coherent Grid-Based Flocking</b></td>
+  </tr>
+  <tr>
+    <td><img src="images/naive_10k_ss100_block128.gif" /></td>
+    <td><img src="images/unif_10k_ss100_block128.gif" /></td>
+    <td><img src="images/coher_10k_ss100_block128.gif" /></td>
+  </tr>
+  <tr>
+    <td colspan="3" align="center"><i>10,000 Boids, Screen Scale 100, 128 Blocks</i></td>
+  </tr>
+</table>
 
 Performance Analysis
 ===
