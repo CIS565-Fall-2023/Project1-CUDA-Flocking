@@ -52,12 +52,12 @@ void checkCUDAError(const char *msg, int line = -1) {
 #define maxSpeed 1.0f
 
 /*! Size of the starting area in simulation space. */
-#define scene_scale 100.0f
+#define scene_scale 200.0f
 
 // define Grid search mode
 // default is 8 cells search
-#define SEARCH_CELL_27 0
-#define GRID_SEACH_OPTIMIZED 1
+#define SEARCH_CELL_27 1
+#define GRID_SEACH_OPTIMIZED 0
 
 /***********************************************
 * Kernel state (pointers are device pointers) *
@@ -907,7 +907,7 @@ void Boids::stepSimulationScatteredGrid(float dt) {
   // step1: label each particle with its array index as well as its grid index.
   kernComputeIndices << <fullBlocksPerGrid, blockSize >> > (numObjects, gridSideCount, gridMinimum, gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
   checkCUDAErrorWithLine("kernComputeIndices failed!");
-  cudaDeviceSynchronize();
+  //cudaDeviceSynchronize();
 
   // step 2: Unstable key sort using Thrust
   thrust::sort_by_key(dev_thrust_particleGridIndices, dev_thrust_particleGridIndices + numObjects, dev_thrust_particleArrayIndices);
@@ -917,17 +917,17 @@ void Boids::stepSimulationScatteredGrid(float dt) {
   kernResetIntBuffer << <fullCellsPerGrid, blockSize >> > (gridCellCount, dev_gridCellEndIndices, -1);
   kernIdentifyCellStartEnd << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
   checkCUDAErrorWithLine("kernIdentifyCellStartEnd failed!");
-  cudaDeviceSynchronize();
+  //cudaDeviceSynchronize();
 
   // step 4: Perform velocity updates using neighbor search
   kernUpdateVelNeighborSearchScattered << <fullBlocksPerGrid, blockSize >> > (numObjects, gridSideCount, gridMinimum, gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_particleArrayIndices, dev_pos, dev_vel1, dev_vel2);
 	checkCUDAErrorWithLine("kernUpdateVelNeighborSearchScattered failed!");
-	cudaDeviceSynchronize();
+	//cudaDeviceSynchronize();
 
 	// step 5: Update positions
 	kernUpdatePos << <fullBlocksPerGrid, blockSize >> > (numObjects, dt, dev_pos, dev_vel2);
 	checkCUDAErrorWithLine("kernUpdatePos failed!");
-	cudaDeviceSynchronize();
+	//cudaDeviceSynchronize();
 
 	// step 6: Ping-pong buffers as needed
 	std::swap(dev_vel1, dev_vel2);
@@ -962,7 +962,7 @@ void Boids::stepSimulationCoherentGrid(float dt) {
   // step1: label each particle with its array index as well as its grid index.
   kernComputeIndices << <fullBlocksPerGrid, blockSize >> > (numObjects, gridSideCount, gridMinimum, gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
   checkCUDAErrorWithLine("kernComputeIndices failed!");
-  cudaDeviceSynchronize();
+  //cudaDeviceSynchronize();
 
   // step 2: Unstable key sort using Thrust
   thrust::sort_by_key(dev_thrust_particleGridIndices, dev_thrust_particleGridIndices + numObjects, dev_thrust_particleArrayIndices);
@@ -972,18 +972,9 @@ void Boids::stepSimulationCoherentGrid(float dt) {
   kernResetIntBuffer << <fullCellsPerGrid, blockSize >> > (gridCellCount, dev_gridCellEndIndices, -1);
   kernIdentifyCellStartEnd << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
   checkCUDAErrorWithLine("kernIdentifyCellStartEnd failed!");
-  cudaDeviceSynchronize();
+  //cudaDeviceSynchronize();
 
    //step 4: Perform velocity updates using neighbor search
-
-  // alternative way to current buffer shuffling, there is no performance difference
-  //kernShuffleData << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_vel2, dev_pos, dev_particleArrayIndices);
-  //cudaMemcpy(dev_pos, dev_vel2, numObjects * sizeof(glm::vec3), cudaMemcpyKind::cudaMemcpyDeviceToDevice);
-
-  //kernShuffleData << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_vel2, dev_vel1, dev_particleArrayIndices);
-  //cudaMemcpy(dev_vel1, dev_vel2, numObjects * sizeof(glm::vec3), cudaMemcpyKind::cudaMemcpyDeviceToDevice);
-
-  //kernUpdateVelNeighborSearchCoherent << <fullBlocksPerGrid, blockSize >> > (numObjects, gridSideCount, gridMinimum, gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_pos, dev_vel1, dev_vel2);
 
   kernShuffleData << <fullBlocksPerGrid, blockSize >> > (numObjects, dev_pos_shuffled, dev_pos, dev_particleArrayIndices);
 
@@ -1000,7 +991,7 @@ void Boids::stepSimulationCoherentGrid(float dt) {
   cudaMemcpy(dev_pos, dev_pos_shuffled, numObjects * sizeof(glm::vec3), cudaMemcpyKind::cudaMemcpyDeviceToDevice);
   kernUpdatePos << <fullBlocksPerGrid, blockSize >> > (numObjects, dt, dev_pos, dev_vel2);
   checkCUDAErrorWithLine("kernUpdatePos failed!");
-  cudaDeviceSynchronize();
+  //cudaDeviceSynchronize();
 
   // step 6: Ping-pong buffers as needed
   std::swap(dev_vel1, dev_vel2);
