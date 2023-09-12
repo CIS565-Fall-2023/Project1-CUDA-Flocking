@@ -71,7 +71,7 @@ In general, increasing the number of boids for each implementation decreases per
 
 **For each implementation, how does changing the block count and block size affect performance?**
 
-| <img src="images/blockSizeVsFps.png">|
+| <img src="images/blockSizeVsFPS.png">|
 |:--:|
 | Scene scale: 100, Number of Boids: 50,000, Cell Width: 2 * Neighbourhood Radius, Visualization Off |
 
