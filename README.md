@@ -25,3 +25,8 @@ Project 1 - Flocking**
 ![](images/result1.png)
 * 250000 particles with coherent grid
 ![](images/result.png)
+
+# IMPORTANT UPDATE
+The simulation shown above is quite wrong and the right version is updated in the below:
+![](images/rec2.gif)
+This is simulated with coherent grid, 10000 particles. For the grading purpose, the orginal code will not be modified until the grading ends. The wrong simulation result above is because of the false clamping method and nelecting the situation when the number of neighbouring boids in the influence area being 0.
