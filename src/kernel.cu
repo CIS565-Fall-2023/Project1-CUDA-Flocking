@@ -5,6 +5,8 @@
 #include <glm/glm.hpp>
 #include "utilityCore.hpp"
 #include "kernel.h"
+#include <thrust/device_vector.h>
+#include <thrust/scan.h>
 
 // LOOK-2.1 potentially useful for doing grid-based neighbor search
 #ifndef imax
@@ -37,7 +39,7 @@ void checkCUDAError(const char *msg, int line = -1) {
 *****************/
 
 /*! Block size used for CUDA kernel launch. */
-#define blockSize 32
+#define blockSize 256
 
 // LOOK-1.2 Parameters for the boids algorithm.
 // These worked well in our reference implementation.
@@ -85,6 +87,11 @@ thrust::device_ptr<int> dev_thrust_particleGridIndices;
 
 int *dev_gridCellStartIndices; // What part of dev_particleArrayIndices belongs
 int *dev_gridCellEndIndices;   // to this cell?
+int* dev_gridCellPartitions;
+int* dev_gridCellPartitionsPrefixSum;
+int* dev_B0start;
+int* dev_B0offset;
+int B0_size=0;
 
 __device__ unsigned int maxNumParticlesInGrid = 0;
 
@@ -198,7 +205,30 @@ void Boids::initSimulation(int N) {
   cudaMalloc((void**)&dev_vel2_reordered, N * sizeof(glm::vec3));
   checkCUDAErrorWithLine("cudaMalloc dev_vel2_reordered failed!");
 
+  cudaMalloc((void**)&dev_gridCellPartitions, gridCellCount * sizeof(int));
+  checkCUDAErrorWithLine("cudaMalloc dev_gridCellPartitions failed!");
+  cudaMalloc((void**)&dev_gridCellPartitionsPrefixSum, gridCellCount * sizeof(int));
+  checkCUDAErrorWithLine("cudaMalloc dev_gridCellPartitionsPrefixSum failed!");
+
+  B0_size = gridCellCount;
+
+  cudaMalloc((void**)&dev_B0start, B0_size * sizeof(int));
+  checkCUDAErrorWithLine("cudaMalloc dev_B0start failed!");
+  cudaMalloc((void**)&dev_B0offset, B0_size * sizeof(int));
+  checkCUDAErrorWithLine("cudaMalloc dev_B0offset failed!");
+
+  int nil = 0;
+  cudaMemcpyToSymbol(maxNumParticlesInGrid, &nil, sizeof(int));
+  checkCUDAErrorWithLine("cudaMemcpyToSymbol maxNumParticlesInGrid failed!");
+
+  cudaDeviceProp devProp;
+  cudaGetDeviceProperties(&devProp, 0);
+  std::cout << "CUDA device max shared memory per block:" << devProp.sharedMemPerBlock<<std::endl;
+
+  cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeFourByte);
+  checkCUDAErrorWithLine("cudaDeviceSetSharedMemConfig cudaSharedMemBankSizeFourByte failed!");
   cudaDeviceSynchronize();
+
 }
 
 
@@ -410,16 +440,37 @@ __global__ void kernIdentifyCellStartEnd(int N, int* particleGridIndices,
     }
 }
 
-__global__ void kernIdentifyMaxNumParticlesInGrid(int N, int* gridCellStartIndices, int* gridCellEndIndices)
+__global__ void kernIdentifyMaxNumParticlesAndPartitionsInGrid(int N, int* gridCellStartIndices, int* gridCellEndIndices, int* partitionsForGrid)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
     __shared__ int blk_sz;
     if (threadIdx.x == 0) blk_sz = 0;
     __syncthreads();
     if (index < N)
-        atomicMax(&blk_sz, gridCellEndIndices[N] - gridCellStartIndices[N]);
+    {
+        int localsz = gridCellEndIndices[index] - gridCellStartIndices[index];
+        atomicMax(&blk_sz, localsz);
+        partitionsForGrid[index] = (localsz + blockSize - 1) / blockSize;
+    }
     __syncthreads();
-    atomicMax(&maxNumParticlesInGrid, blk_sz);
+    if(threadIdx.x == 0)
+        atomicMax(&maxNumParticlesInGrid, blk_sz);
+}
+
+__global__ void kernCompactArray(int N,int* gridCellPartitions, int* gridCellPartitionsPrefixSum,int* B0start,int* B0offset)
+{
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+    if (index >= N) return;
+    int partitionSize = gridCellPartitions[index];
+    if (partitionSize)
+    {
+        int b0idx = gridCellPartitionsPrefixSum[index];
+        for (int i = 0; i < partitionSize; i++)
+        {
+            B0start[b0idx + i] = index;
+            B0offset[b0idx + i] = i;
+        }
+    }
 }
 
 __global__ void kernUpdateVelNeighborSearchScattered(
@@ -687,6 +738,108 @@ __global__ void kernUpdateVelNeighborSearchCoherentGridLoopingOptimization(
     vel2[selfIndex] = glm::clamp(v, -maxSpeed, maxSpeed);
 }
 
+#define NUM_COPY_THREADS 108
+
+__global__ void kernUpdateVelNeighborSearchCoherentSharedMemoryOptimization(
+    int N, int gridResolution,int gridMaxNumParticles, glm::vec3 gridMin,
+    float inverseCellWidth, float cellWidth,
+    const int* gridCellStartIndices, const int* gridCellEndIndices,const int* b0start, const int* b0offset,
+    const glm::vec3* pos, const glm::vec3* vel1, glm::vec3* vel2) {
+    int indexInGrid = b0offset[blockIdx.x] * blockSize + threadIdx.x;
+    int selfFlattenedGridIdx = b0start[blockIdx.x];
+    int particleIdxEnd = gridCellEndIndices[selfFlattenedGridIdx];
+    int particleIdxStart = gridCellStartIndices[selfFlattenedGridIdx];
+    int gridNumParticles = particleIdxEnd - particleIdxStart;
+    
+    
+    glm::ivec3 gridIdx = glm::ivec3((selfFlattenedGridIdx % (gridResolution * gridResolution)) % gridResolution, (selfFlattenedGridIdx % (gridResolution * gridResolution)) / gridResolution, selfFlattenedGridIdx / (gridResolution * gridResolution));
+    int localIndex = threadIdx.x;
+    extern __shared__ glm::vec3 s[];
+    
+    if (localIndex < NUM_COPY_THREADS)
+    {
+        int w = localIndex / 27;
+        int li = localIndex % 27;
+        int x = (li % 9) % 3 - 1, y = (li % 9) / 3 - 1, z = li / 9 - 1;
+        int nx = gridIdx.x + x, ny = gridIdx.y + y, nz = gridIdx.z + z;
+        if (nx >= 0 || nx < gridResolution || ny >= 0 || ny < gridResolution || nz >= 0 || nz < gridResolution)
+        {
+            int flattenedCellIdx = gridIndex3Dto1D(nx, ny, nz, gridResolution);
+            if (gridCellStartIndices[flattenedCellIdx] >= 0)
+            {
+                for (int other = gridCellStartIndices[flattenedCellIdx] + w, i = w; other < gridCellEndIndices[flattenedCellIdx]; other+= NUM_COPY_THREADS/27,i+= NUM_COPY_THREADS / 27)
+                {
+                    s[gridMaxNumParticles * li * 2 + i * 2] = pos[other];
+                    s[gridMaxNumParticles * li * 2 + i * 2 + 1] = vel1[other];
+                }
+            }
+        }
+    }
+    __syncthreads();
+    if (indexInGrid < gridNumParticles)
+    {
+        // TODO-2.3 - This should be very similar to kernUpdateVelNeighborSearchScattered,
+        // except with one less level of indirection.
+        // This should expect gridCellStartIndices and gridCellEndIndices to refer
+        // directly to pos and vel1.
+        // - Identify the grid cell that this particle is in
+        int selfIndex = particleIdxStart + b0offset[blockIdx.x] * blockSize + threadIdx.x;
+        int blockOffset = indexInGrid * 2;
+        int centerGridOffset = gridMaxNumParticles * (27/2) * 2;
+        glm::vec3 currPos = s[centerGridOffset + blockOffset];
+        glm::vec3 v = s[centerGridOffset + blockOffset + 1];
+        int num_neighbours = 0;
+        glm::vec3 percived_velocity = glm::vec3(0);
+        glm::vec3 percived_center = glm::vec3(0);
+        glm::vec3 c = glm::vec3(0);
+        // - Identify which cells may contain neighbors. This isn't always 8.
+        // - For each cell, read the start/end indices in the boid pointer array.
+        //   DIFFERENCE: For best results, consider what order the cells should be
+        //   checked in to maximize the memory benefits of reordering the boids data.
+        // - Access each boid in the cell and compute velocity change from
+        //   the boids rules, if this boid is within the neighborhood distance.
+        for (int z = -1; z <= 1; z++)
+            for (int y = -1; y <= 1; y++)
+                for (int x = -1; x <= 1; x++)
+                {
+                    int nx = gridIdx.x + x, ny = gridIdx.y + y, nz = gridIdx.z + z;
+                    if (nx < 0 || nx >= gridResolution || ny < 0 || ny >= gridResolution || nz < 0 || nz >= gridResolution)
+                    {
+                        continue;
+                    }
+                    int flattenedCellIdx = gridIndex3Dto1D(nx, ny, nz, gridResolution);
+                    int smCellIdx = gridIndex3Dto1D(x + 1, y + 1, z + 1, 3);
+                    if (gridCellStartIndices[flattenedCellIdx] >= 0)
+                    {
+                        for (int other = gridCellStartIndices[flattenedCellIdx],i=0; other != gridCellEndIndices[flattenedCellIdx]; other++,i++)
+                        {
+                            float dist = glm::distance(currPos, s[gridMaxNumParticles * smCellIdx * 2 + i * 2]);
+                            if (other != selfIndex && dist < rule1Distance)//assume rule1Distance==rule3Distance
+                            {
+                                num_neighbours++;
+                                percived_velocity += s[gridMaxNumParticles * smCellIdx * 2 + i * 2 + 1];
+                                percived_center += s[gridMaxNumParticles * smCellIdx * 2 + i * 2];
+                                if (dist < rule2Distance)
+                                {
+                                    c -= (s[gridMaxNumParticles * smCellIdx * 2 + i * 2] - currPos);
+                                }
+                            }
+                        }
+                    }
+                }
+
+        if (num_neighbours)
+        {
+            percived_center /= num_neighbours;
+            v += (percived_center - currPos) * rule1Scale;
+            v += percived_velocity * rule3Scale / (float)num_neighbours;
+            v += c * rule2Scale;
+        }
+        // - Clamp the speed change before putting the new speed in vel2
+        vel2[selfIndex] = glm::clamp(v, -maxSpeed, maxSpeed);
+    }
+}
+
 /**
 * Step the entire N-body simulation by `dt` seconds.
 */
@@ -799,6 +952,7 @@ void Boids::stepSimulationCoherentGridSharedMemOptimization(float dt) {
     // - Label each particle with its array index as well as its grid index.
     //   Use 2x width grids
     kernComputeIndices << < n1, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth, dev_pos, dev_particleArrayIndices, dev_particleGridIndices);
+    //checkCUDAErrorWithLine("kernComputeIndices failed!");
     // - Unstable key sort using Thrust. A stable sort isn't necessary, but you
     //   are welcome to do a performance comparison.
     thrust::sort_by_key(dev_thrust_particleGridIndices, dev_thrust_particleGridIndices + numObjects, dev_thrust_particleArrayIndices);
@@ -807,12 +961,39 @@ void Boids::stepSimulationCoherentGridSharedMemOptimization(float dt) {
     kernResetIntBuffer << < n2, blockSize >> > (gridCellCount, dev_gridCellStartIndices, -1);
     kernResetIntBuffer << < n2, blockSize >> > (gridCellCount, dev_gridCellEndIndices, -1);
     kernIdentifyCellStartEnd << < n1, blockSize >> > (N, dev_particleGridIndices, dev_gridCellStartIndices, dev_gridCellEndIndices);
+    kernResetIntBuffer << < n2, blockSize >> > (gridCellCount, dev_gridCellPartitions, 0);
+    kernIdentifyMaxNumParticlesAndPartitionsInGrid << < n2, blockSize >> > (gridCellCount, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_gridCellPartitions);
+    thrust::device_ptr<int> dev_thrust_gridcellpartition(dev_gridCellPartitions);
+    thrust::device_ptr<int> dev_thrust_gridcellpartitionprefixsum(dev_gridCellPartitionsPrefixSum);
+    thrust::exclusive_scan(dev_thrust_gridcellpartition, dev_thrust_gridcellpartition + gridCellCount, dev_gridCellPartitionsPrefixSum);
+    //checkCUDAErrorWithLine("exclusive_scan failed!");
+    int b0size,lastPos,lastSize;
+    int maxNumParticles;
+    cudaMemcpyFromSymbol(&maxNumParticles, maxNumParticlesInGrid, sizeof(int));
+    int nil = 0;
+    cudaMemcpyToSymbol(maxNumParticlesInGrid, &nil, sizeof(int));
+    cudaMemcpy(&lastPos, dev_gridCellPartitionsPrefixSum + gridCellCount - 1, sizeof(int), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&lastSize, dev_gridCellPartitions + gridCellCount - 1, sizeof(int), cudaMemcpyDeviceToHost);
+    b0size = lastPos + lastSize;
+    if (b0size > B0_size)
+    {
+        B0_size = b0size;
+        cudaFree(dev_B0start);
+        cudaFree(dev_B0offset);
+        cudaMalloc((void**)&dev_B0start, b0size * sizeof(int));
+        checkCUDAErrorWithLine("cudaMalloc dev_B0start failed!");
+        cudaMalloc((void**)&dev_B0offset, b0size * sizeof(int));
+        checkCUDAErrorWithLine("cudaMalloc dev_B0offset failed!");
+    }
+    kernCompactArray << <n2, blockSize >> > (gridCellCount, dev_gridCellPartitions, dev_gridCellPartitionsPrefixSum, dev_B0start, dev_B0offset);
+    uint64_t sharedMemSize = (uint64_t)maxNumParticles * 27 * sizeof(glm::vec3) * 2;
     // - BIG DIFFERENCE: use the rearranged array index buffer to reshuffle all
     //   the particle data in the simulation array.
     //   CONSIDER WHAT ADDITIONAL BUFFERS YOU NEED
     kernShufflePosAndVel1 << < n1, blockSize >> > (N, dev_particleArrayIndices, dev_pos, dev_vel1, dev_pos_reordered, dev_vel1_reordered);
     // - Perform velocity updates using neighbor search
-    kernUpdateVelNeighborSearchCoherent << < n1, blockSize >> > (N, gridSideCount, gridMinimum, gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_pos_reordered, dev_vel1_reordered, dev_vel2_reordered);
+    kernUpdateVelNeighborSearchCoherentSharedMemoryOptimization << < b0size, blockSize, sharedMemSize>> > (b0size, gridSideCount, maxNumParticles, gridMinimum, gridInverseCellWidth, gridCellWidth, dev_gridCellStartIndices, dev_gridCellEndIndices, dev_B0start, dev_B0offset, dev_pos_reordered, dev_vel1_reordered, dev_vel2_reordered);
+    checkCUDAErrorWithLine("kernUpdateVelNeighborSearchCoherentSharedMemoryOptimization failed!");
     kernUnshuffleVel2 << < n1, blockSize >> > (N, dev_particleArrayIndices, dev_vel2_reordered, dev_vel2);
     // - Update positions
     kernUpdatePos << <n1, blockSize >> > (numObjects, dt, dev_pos, dev_vel2);

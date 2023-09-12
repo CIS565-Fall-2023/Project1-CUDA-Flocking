@@ -17,9 +17,10 @@
 #define UNIFORM_GRID 1
 #define COHERENT_GRID 1
 #define GRIDLOOP_OPT 0 //Grid looping optimization
+#define SHARED_MEM 0;
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
-const int N_FOR_VIS = 100000;
+const int N_FOR_VIS = 10000;
 const float DT = 0.05f;
 
 /**
@@ -200,6 +201,8 @@ void initShaders(GLuint * program) {
     #if UNIFORM_GRID && COHERENT_GRID
     #if GRIDLOOP_OPT
     Boids::stepSimulationCoherentGridLoopingOptimization(DT);
+    #elif SHARED_MEM
+    Boids::stepSimulationCoherentGridSharedMemOptimization(DT);
     #else
     Boids::stepSimulationCoherentGrid(DT);
     #endif
