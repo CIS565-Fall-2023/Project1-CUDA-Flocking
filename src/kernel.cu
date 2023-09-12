@@ -450,7 +450,8 @@ __global__ void kernUpdateVelNeighborSearchScattered(
     int rule3Boids = 0;
 
     // - Identify the grid cell that this particle is in
-    glm::ivec3 gridIdx3d = (pos[index] - gridMin) * inverseCellWidth;
+    glm::vec3 thisPos = pos[particleArrayIndices[index]];
+    glm::ivec3 gridIdx3d = (thisPos - gridMin) * inverseCellWidth;
 
     // - Identify which cells may contain neighbors. This isn't always 8.
     float dist = cellWidth * 0.5f;
@@ -458,8 +459,8 @@ __global__ void kernUpdateVelNeighborSearchScattered(
     glm::ivec3 start = gridIdx3d - glm::ivec3(1);
     glm::ivec3 end = gridIdx3d + glm::ivec3(1);
 #else
-    glm::ivec3 start = (pos[index] - cellWidth - gridMin) * inverseCellWidth;
-    glm::ivec3 end = (pos[index] + cellWidth - gridMin) * inverseCellWidth;
+    glm::ivec3 start = (thisPos - cellWidth - gridMin) * inverseCellWidth;
+    glm::ivec3 end = (thisPos + cellWidth - gridMin) * inverseCellWidth;
 #endif
 
     for (int x = start.x; x <= end.x; x++)
@@ -499,7 +500,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
                         continue;   // ignore self
                     }
 
-                    float distance = glm::distance(pos[index], pos[particleIdx]);
+                    float distance = glm::distance(thisPos, pos[particleIdx]);
                     // Rule 1: boids fly towards their local perceived center of mass, which excludes themselves
                     if (distance < rule1Distance)
                     {
@@ -510,7 +511,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
                     // Rule 2: boids try to stay a distance d away from each other
                     if (distance < rule2Distance)
                     {
-                        c -= (pos[particleIdx] - pos[index]);
+                        c -= (pos[particleIdx] - thisPos);
                     }
 
                     // Rule 3: boids try to match the speed of surrounding boids
@@ -524,12 +525,12 @@ __global__ void kernUpdateVelNeighborSearchScattered(
         }
     }
 
-    velChange = vel1[index];
+    velChange = vel1[particleArrayIndices[index]];
 
     if (rule1Boids > 0)
     {
         perceivedCom /= rule1Boids;
-        velChange += (perceivedCom - pos[index]) * rule1Scale;
+        velChange += (perceivedCom - thisPos) * rule1Scale;
     }
 
     velChange += c * rule2Scale;
@@ -544,7 +545,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
     {
         velChange = (velChange / mag) * maxSpeed; // clamp velocity
     }
-    vel2[index] = velChange;
+    vel2[particleArrayIndices[index]] = velChange;
 }
 
 __global__ void kernUpdateVelNeighborSearchCoherent(
