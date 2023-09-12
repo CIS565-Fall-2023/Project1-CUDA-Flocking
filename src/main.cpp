@@ -18,8 +18,8 @@
 #define COHERENT_GRID 0
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
-const int N_FOR_VIS = 5000;
-const float DT = 0.2f;
+const int N_FOR_VIS = 10000;
+const float DT = 0.5f;
 
 /**
 * C main function.
@@ -230,6 +230,9 @@ void initShaders(GLuint * program) {
         fps = frame / (time - timebase);
         timebase = time;
         frame = 0;
+
+        // Print the fps value to console
+        std::cout << fps << ", ";
       }
 
       runCUDA();
@@ -240,6 +243,8 @@ void initShaders(GLuint * program) {
       ss << std::fixed << fps;
       ss << " fps] " << deviceName;
       glfwSetWindowTitle(window, ss.str().c_str());
+
+      
 
       glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
