@@ -100,3 +100,19 @@ The improvement with coherent grid was great. This improvement is understandable
 ![](images/perf_diff_gridsz.png)
 
 It did affect performance. Generally performance will be improved. Because when cell width is the twice of the rule distance, there will be some boids that are not actually in the rule distance in the neighbouring 8 cells. But when cell width is just the rule distance, although numbers of cells in the loop will increase, number of boids that needs to be checked will actually decrease. And the denser the simulation field is, the more will this be improved.
+
+
+
+#### Extra Credits:
+
+##### Shared-Memory Optimization
+
+Added shared memory usage with block compacting: That is, to divide each grid further into **B0**  blocks. In each **B0** block, use the first 108 threads to load position and velocity of adjacent 27 blocks to shared memory (each thread read and write at different locations),  and then all threads in that block could use the shared memory to compute interactions with its neighborhood. This has a shortcoming that is we need to recalculate the needed shared memory size for each block every frame and that quantity might surpass the device's limit for shared memory on each block.
+
+Work in progress.
+
+##### Grid-Loop Optimization
+
+Pros: No need to hard code search area
+
+Cons: Loops are harder to unroll for the compiler
