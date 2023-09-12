@@ -13,12 +13,12 @@
 // ================
 
 // LOOK-2.1 LOOK-2.3 - toggles for UNIFORM_GRID and COHERENT_GRID
-#define VISUALIZE 0
+#define VISUALIZE 1
 #define UNIFORM_GRID 0
 #define COHERENT_GRID 0
 
 // LOOK-1.2 - change this to adjust particle count in the simulation
-const int N_FOR_VIS = 5000;
+const int N_FOR_VIS = 10000;
 const float DT = 0.5f;
 
 /**
@@ -232,7 +232,7 @@ void initShaders(GLuint * program) {
         frame = 0;
 
         // Print the fps value to console
-        std::cout << fps << std::endl;
+        std::cout << fps << ", ";
       }
 
       runCUDA();
