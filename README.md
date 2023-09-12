@@ -80,3 +80,7 @@ Increasing the block size increases performance up to 64, and after that increas
 **For the coherent uniform grid: did you experience any performance improvements with the more coherent uniform grid? Was this the outcome you expected?**
 
 Yes. This was expected because we manually made sure that the position and velocity lookups are contiguous in memory in the coherent method, as opposed to them being inconsistent in the uniform grid.
+
+**Did changing cell width and checking 27 vs 8 neighboring cells affect performance? Why or why not?**
+
+Initially, there is a small performance gain when the cell width is changed to 1X instead of 2X and we check 27 instead of 8 neighbouring cells. This is likely due to the fact that checking which 8 neighbouring cells need to be considered has a performance overhead that adds back to the cost that is reduced by checking only 8 cells. When the number of boids is increased, however, beyond 25000, we start seeing actual performance gains from using the 2X cell width and 8 neighbouring cells checks. This is because at this point, the gain from doing the reduced number of checks actually starts outweighing any costs associated with doing the calculations for figuring out which 8 cells to consider.
