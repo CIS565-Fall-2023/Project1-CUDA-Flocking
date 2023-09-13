@@ -33,14 +33,15 @@ void checkCUDAError(const char *msg, int line = -1) {
     exit(EXIT_FAILURE);
   }
 }
-
+  
 
 /*****************
 * Configuration *
 *****************/
-
+  
 /*! Block size used for CUDA kernel launch. */
 #define blockSize 128
+   
 
 // LOOK-1.2 Parameters for the boids algorithm.
 // These worked well in our reference implementation.
@@ -163,7 +164,7 @@ void Boids::initSimulation(int N) {
   checkCUDAErrorWithLine("kernGenerateRandomPosArray failed!");
 
   // LOOK-2.1 computing grid params
-  gridCellWidth = std::max(std::max(rule1Distance, rule2Distance), rule3Distance);
+  gridCellWidth = 8 * std::max(std::max(rule1Distance, rule2Distance), rule3Distance);
   int halfSideCount = (int)(scene_scale / gridCellWidth) + 1;
   gridSideCount = 2 * halfSideCount;
 
@@ -189,7 +190,7 @@ void Boids::initSimulation(int N) {
 
   cudaMalloc((void**)&dev_coherent_pos, N * sizeof(glm::vec3));
   checkCUDAErrorWithLine("cudaMalloc dev_coherent_pos failed!");
-
+    
   cudaMalloc((void**)&dev_coherent_vel_1, N * sizeof(glm::vec3));
   checkCUDAErrorWithLine("cudaMalloc dev_coherent_vel_1 failed!");
 
@@ -459,7 +460,7 @@ __global__ void kernIdentifyCellStartEnd(int N, int *particleGridIndices,
   }
 }
 
-// can I pass a const reference in CUDA code?
+// grid-looping optimization
 __device__ int calculateDimIndex(float coordinate, int dimension, const glm::vec3 gridMin, float inverseCellWidth)
 {
   return floor((coordinate - gridMin[dimension]) * inverseCellWidth);
@@ -505,6 +506,7 @@ __device__ glm::vec3 compute_vel_change_neighbor_search(int this_boid_index, con
   float num_neighbors_rule_1 = 0;
   float num_neighbors_rule_3 = 0;
 
+  // grid-looping optimization seen here
   for (int z = min_indices.z; z <= max_indices.z; z++)
   {
     for (int y = min_indices.y; y <= max_indices.y; y++)
@@ -568,6 +570,7 @@ __global__ void kernUpdateVelNeighborSearchScattered(
   glm::vec3 min_indices;
   glm::vec3 max_indices;
   
+  // Grid-looping optimization for extra credit here
   float distance = imax(rule1Distance, (imax(rule2Distance, rule3Distance)));
   min_indices.x = calculateDimIndex(imax((this_pos[0] - distance), gridMin[0]), 0, gridMin, inverseCellWidth);
   min_indices.y = calculateDimIndex(imax((this_pos[1] - distance), gridMin[1]), 1, gridMin, inverseCellWidth);
