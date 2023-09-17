@@ -2,7 +2,19 @@
 
 Jason Li   ([LinkedIn](https://linkedin.com/in/jeylii))
 * Tested on: Windows 10, i7-12700 @ 2.10GHz 32GB, NVIDIA T1000 (CETS Virtual Lab)
+* Captured on: Windows 10, Ryzen 5 3600X @ 3.80GHz 32 GB, NVIDIA RTX 4070 
 
+![4M Boids](images/4M_boids.gif) | 
+|:--:| 
+| *4M Boids* |
+
+![500K Boids](images/500K_boids.gif) | 
+|:--:| 
+| *500K Boids* |
+
+![10K Boids](images/10K_boids.gif) | 
+|:--:| 
+| *10K Boids* |
 
 ## **Implementation and Performance Analysis**
 
